@@ -9,8 +9,11 @@ description = "Benchloop FastAPI product core"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.13,<2.0",
   "fastapi[standard]>=0.115,<1.0",
   "pydantic-settings>=2.2,<3.0",
+  "psycopg>=3.1,<4.0",
+  "sqlalchemy>=2.0,<3.0",
 ]
 
 [dependency-groups]

@@ -1,4 +1,4 @@
-.PHONY: help check-structure init-env postgres-up postgres-down postgres-logs local-up api-sync api-dev api-test
+.PHONY: help check-structure init-env postgres-up postgres-down postgres-logs local-up api-sync api-dev api-test api-migrate api-revision
 
 help:
 	@echo "Benchloop repository commands"
@@ -13,6 +13,8 @@ help:
 	@echo "  make api-sync         Sync the uv-managed FastAPI environment"
 	@echo "  make api-dev          Run the FastAPI app locally"
 	@echo "  make api-test         Run the FastAPI tests"
+	@echo "  make api-migrate      Apply Alembic migrations for the API package"
+	@echo "  make api-revision     Generate an Alembic revision (requires MESSAGE=...)"
 
 check-structure:
 	@test -d apps/api
@@ -44,3 +46,10 @@ api-dev:
 
 api-test:
 	@uv run --directory apps/api --group dev pytest
+
+api-migrate:
+	@uv run --directory apps/api --group dev alembic upgrade head
+
+api-revision:
+	@test -n "$(MESSAGE)" || (echo "Usage: make api-revision MESSAGE='describe change'" && exit 1)
+	@uv run --directory apps/api --group dev alembic revision --autogenerate -m "$(MESSAGE)"

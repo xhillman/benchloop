@@ -42,5 +42,6 @@ Current status:
 
 - local Postgres bootstrapping is ready now
 - FastAPI runtime scaffolding is ready through `B003`
+- SQLAlchemy base wiring and Alembic scaffolding are ready through `B004`
 - the API uses a `uv`-managed, locked Python environment under `apps/api`
 - Next.js runtime scaffolding lands in `B006`

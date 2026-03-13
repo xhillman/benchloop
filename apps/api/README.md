@@ -5,7 +5,7 @@ This directory hosts the FastAPI product core.
 Current ownership:
 
 - `src/benchloop_api`
-  - application package, app factory, config loading, and API routes
+  - application package, app factory, config loading, API routes, and database helpers
 - `alembic`
   - database migrations
 - `tests`
@@ -22,6 +22,15 @@ Implemented in `B003`:
 - `/api/v1/health`
   - boot-time health check for local verification
 
+Implemented in `B004`:
+
+- `benchloop_api.db`
+  - SQLAlchemy engine/session helpers, declarative base, and shared UUID plus timestamp mixins
+- `apps/api/alembic.ini`
+  - Alembic entrypoint configured against the application metadata
+- `apps/api/alembic`
+  - migration environment and baseline revision scaffold
+
 Local env convention:
 
 - copy `apps/api/.env.example` to `apps/api/.env`, or run `make init-env` from the repo root
@@ -37,6 +46,10 @@ Local commands:
   - run the FastAPI app with the FastAPI CLI on `http://localhost:8000`
 - `make api-test`
   - run the backend test suite inside the locked `uv` environment
+- `make api-migrate`
+  - apply migrations to the configured database
+- `make api-revision MESSAGE="describe change"`
+  - generate a new migration revision against the shared SQLAlchemy metadata
 
 Python version:
 
