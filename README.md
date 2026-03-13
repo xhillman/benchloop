@@ -20,15 +20,18 @@ B002 establishes the local infrastructure and environment conventions that later
 Prerequisites:
 
 - Docker with Compose support
+- `uv`
 
 Startup path:
 
 1. Run `make local-up`.
-2. Review the generated env files and replace placeholder secrets before wiring real app runtimes:
+2. Run `make api-sync` to create the pinned Python 3.12 API environment from `apps/api/uv.lock`.
+3. Run `make api-dev` to boot the FastAPI runtime with the FastAPI CLI.
+4. Review the generated env files and replace placeholder secrets before wiring real app runtimes:
    - `/.env`
    - `/apps/api/.env`
    - `/apps/web/.env.local`
-3. When you are done, run `make postgres-down`.
+5. When you are done, run `make postgres-down`.
 
 What `make local-up` does:
 
@@ -38,4 +41,6 @@ What `make local-up` does:
 Current status:
 
 - local Postgres bootstrapping is ready now
-- API and web runtime scaffolding land in `B003` and `B006`
+- FastAPI runtime scaffolding is ready through `B003`
+- the API uses a `uv`-managed, locked Python environment under `apps/api`
+- Next.js runtime scaffolding lands in `B006`
