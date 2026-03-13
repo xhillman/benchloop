@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: benchloop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-benchloop}
+      POSTGRES_USER: ${POSTGRES_USER:-benchloop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchloop}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - benchloop_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-benchloop} -d ${POSTGRES_DB:-benchloop}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  benchloop_postgres_data:

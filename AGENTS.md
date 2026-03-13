@@ -15,6 +15,10 @@ Read the PRD first for product context:
 
 - [dev/benchloop-prd.md](/Users/xavierhillman/blackbox/code/benchloop/dev/benchloop-prd.md)
 
+Read the repo router before non-trivial work:
+
+- [REPO_MAP.md](/Users/xavierhillman/blackbox/code/benchloop/REPO_MAP.md)
+
 Read the contracts and backlog before implementing features:
 
 - [dev/contracts/README.md](/Users/xavierhillman/blackbox/code/benchloop/dev/contracts/README.md)
@@ -67,12 +71,13 @@ These are hard rules, not preferences.
 
 When implementing work in this repo:
 
-1. Identify the relevant contract in `dev/contracts`.
-2. Check the backlog entry and dependency order in `dev/contracts/BACKLOG.md`.
-3. Implement the smallest complete slice that satisfies the current backlog item.
-4. Keep foundations boring and literal. Prefer clear names over clever abstractions.
-5. Verify the work locally with the narrowest useful check.
-6. Update docs if the repo structure, setup flow, or implementation contract changes.
+1. Open `REPO_MAP.md` and use it to constrain context to the task.
+2. Identify the relevant contract in `dev/contracts`.
+3. Check the backlog entry and dependency order in `dev/contracts/BACKLOG.md`.
+4. Implement the smallest complete slice that satisfies the current backlog item.
+5. Keep foundations boring and literal. Prefer clear names over clever abstractions.
+6. Verify the work locally with the narrowest useful check.
+7. Update docs if the repo structure, setup flow, or implementation contract changes.
 
 ## Current Planning Baseline
 
@@ -113,8 +118,10 @@ Expected frontend home:
 - Product requirements belong in `dev/benchloop-prd.md`.
 - Implementation contracts belong in `dev/contracts`.
 - Lightweight engineering notes belong in `dev/notes`.
+- Repo routing guidance belongs in `REPO_MAP.md`.
 
 If a change affects execution order or scope, update the relevant contract or backlog entry in the same task.
+If a change affects repo structure or task routing, update `REPO_MAP.md` in the same task.
 
 ## Early-Stage Constraints
 
