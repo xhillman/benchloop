@@ -1,8 +1,12 @@
+import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 
 import { publicAppConfig } from "@/lib/app-config";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { userId } = await auth();
+  const isSignedIn = Boolean(userId);
+
   return (
     <main className="marketing-page">
       <div className="marketing-shell">
@@ -10,17 +14,17 @@ export default function HomePage() {
           <div>
             <span className="brand-mark">Benchloop</span>
           </div>
-          <div className="pill">FastAPI-first client shell</div>
+          <div className="pill">{isSignedIn ? "Active Clerk session" : "Public visitor"}</div>
         </header>
 
         <section className="hero-grid">
           <div className="hero-copy">
-            <p className="eyebrow">B006 Product Shell</p>
+            <p className="eyebrow">B007 Clerk Integration</p>
             <h1>Run the web app like a disciplined notebook, not a pile of tabs.</h1>
             <p>
-              This scaffold establishes the shared navigation, route groups, and reusable
-              state surfaces for the experiment loop. Feature pages stay thin while the FastAPI
-              product core remains the system of record.
+              Clerk now gates the product shell while the public landing page stays open. The web
+              app can route users into a real sign-in flow without moving product behavior out of
+              FastAPI.
             </p>
             <div className="pill-row">
               <span className="pill">Dashboard</span>
@@ -29,8 +33,11 @@ export default function HomePage() {
               <span className="pill">Settings</span>
             </div>
             <div className="cta-row">
-              <Link className="cta-link primary" href="/dashboard">
-                Open shell
+              <Link
+                className="cta-link primary"
+                href={isSignedIn ? "/dashboard" : publicAppConfig.clerkSignInUrl}
+              >
+                {isSignedIn ? "Open dashboard" : "Sign in to Benchloop"}
               </Link>
               <a className="cta-link secondary" href={publicAppConfig.apiBaseUrl}>
                 View API base
@@ -51,7 +58,7 @@ export default function HomePage() {
               </div>
               <div className="metric-row">
                 <span>Auth lane</span>
-                <strong>Clerk wiring lands in B007</strong>
+                <strong>{isSignedIn ? "Active Clerk session" : "Public visitor"}</strong>
               </div>
             </div>
           </aside>
@@ -60,28 +67,28 @@ export default function HomePage() {
         <section className="section-grid">
           <article className="panel-card">
             <p className="section-kicker">Route groups</p>
-            <h2>Public and shell routes split early.</h2>
+            <h2>Public and shell routes are split and enforced.</h2>
             <p>
-              The root page stays public while the main app shell lives under a dedicated group
-              that can take Clerk protection in the next backlog item.
+              The root page stays public while the main app shell sits behind Clerk-backed route
+              protection and dedicated auth entrypoints.
             </p>
           </article>
 
           <article className="panel-card">
-            <p className="section-kicker">Global state</p>
-            <h2>Loading and error state are centralized.</h2>
+            <p className="section-kicker">Auth flow</p>
+            <h2>Sign-in redirects land users inside the shell.</h2>
             <p>
-              Shared UI state exists now so the later API client can raise actionable failures
-              instead of burying them inside leaf components.
+              The shell can now depend on a Clerk session and later backlog items can attach the
+              typed FastAPI client to that authenticated context.
             </p>
           </article>
 
           <article className="panel-card">
             <p className="section-kicker">UI primitives</p>
-            <h2>Empty, loading, and error surfaces are reusable.</h2>
+            <h2>Signed-in shell behavior is visible in the shared chrome.</h2>
             <p>
-              Feature work can plug into consistent status cards instead of inventing page-by-page
-              placeholders.
+              The protected shell keeps reusable status surfaces while exposing a live session
+              affordance instead of placeholder auth copy.
             </p>
           </article>
         </section>

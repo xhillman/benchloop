@@ -25,6 +25,15 @@ Implemented in `B006`:
 - Frontend checks
   - TypeScript config, ESLint config, and Vitest plus Testing Library setup
 
+Implemented in `B007`:
+
+- Clerk-backed auth entrypoints
+  - root `ClerkProvider`, dedicated `sign-in` and `sign-up` routes, and protected shell routing
+- Signed-in shell behavior
+  - shell routes require a Clerk session and surface a live user menu instead of placeholder auth copy
+- Local auth env convention
+  - committed placeholders for Clerk publishable and secret keys plus explicit local auth route paths
+
 Local commands:
 
 - `make web-install`
@@ -44,4 +53,5 @@ Local env convention:
 
 - copy `apps/web/.env.example` to `apps/web/.env.local`, or run `make init-env` from the repo root
 - local API base URL default: `http://localhost:8000`
-- Clerk keys remain placeholders until the auth backlog items land
+- local Clerk paths default to `/sign-in` and `/sign-up`
+- replace the Clerk key placeholders before testing authenticated routes locally

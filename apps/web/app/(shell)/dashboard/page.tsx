@@ -32,7 +32,7 @@ export default function DashboardPage() {
             </div>
             <div className="status-item">
               <span>Signed-in shell</span>
-              <strong>Ready for Clerk gating in B007</strong>
+              <strong>Protected route group with Clerk session gating</strong>
             </div>
           </div>
         </article>

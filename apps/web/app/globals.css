@@ -484,12 +484,74 @@ select {
   border-top: 1px solid rgba(248, 242, 232, 0.12);
 }
 
+.shell-auth-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.shell-auth-card p {
+  margin: 6px 0 0;
+}
+
+.shell-auth-link {
+  min-width: 112px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-panel {
+  width: min(100%, 980px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.auth-copy,
+.auth-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.auth-copy {
+  padding: 32px;
+}
+
+.auth-copy h1 {
+  margin: 12px 0 0;
+  font-family: var(--font-display), serif;
+  font-size: clamp(2.6rem, 5vw, 4.2rem);
+  line-height: 0.94;
+}
+
+.auth-copy p {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.auth-form {
+  padding: 24px;
+}
+
 @media (max-width: 1080px) {
   .hero-grid,
   .section-grid,
   .shell-layout,
   .two-column-grid,
-  .three-column-grid {
+  .three-column-grid,
+  .auth-panel {
     grid-template-columns: 1fr;
   }
 
@@ -510,18 +572,22 @@ select {
   .shell-topbar,
   .page-header,
   .shell-panel,
-  .state-card {
+  .state-card,
+  .auth-copy,
+  .auth-form {
     padding: 20px;
   }
 
   .marketing-topbar,
   .shell-topbar,
-  .shell-banner {
+  .shell-banner,
+  .shell-auth-card {
     flex-direction: column;
   }
 
   .hero-copy h1,
-  .page-header h1 {
+  .page-header h1,
+  .auth-copy h1 {
     font-size: clamp(2.3rem, 11vw, 4rem);
   }
 }

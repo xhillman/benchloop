@@ -1,11 +1,13 @@
 "use client";
 
+import { UserButton, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { useAppShellState } from "@/components/providers/app-shell-provider";
 import { productNavLinks } from "@/components/shell/nav-links";
+import { publicAppConfig } from "@/lib/app-config";
 
 type AppShellProps = {
   children: ReactNode;
@@ -17,6 +19,7 @@ function isActiveLink(pathname: string, href: string) {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname() ?? "";
+  const { isSignedIn } = useAuth();
   const { clearGlobalError, error, isLoading, pendingCount } = useAppShellState();
 
   return (
@@ -44,7 +47,25 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
 
         <div className="shell-footer">
-          <p>Clerk protection and the typed API client land in the next web backlog slices.</p>
+          {isSignedIn ? (
+            <div className="shell-auth-card">
+              <div>
+                <span className="section-kicker">Session</span>
+                <p>Active Clerk session</p>
+              </div>
+              <UserButton />
+            </div>
+          ) : (
+            <div className="shell-auth-card">
+              <div>
+                <span className="section-kicker">Route gating</span>
+                <p>Protected product routes redirect through Clerk.</p>
+              </div>
+              <Link className="cta-link secondary shell-auth-link" href={publicAppConfig.clerkSignInUrl}>
+                Sign in
+              </Link>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -54,10 +75,11 @@ export function AppShell({ children }: AppShellProps) {
             <p className="eyebrow">Benchloop workbench</p>
             <h1>FastAPI-first experiment shell</h1>
             <p className="status-copy">
-              The shell owns navigation, route framing, and reusable loading or error surfaces.
+              The shell owns navigation, Clerk session framing, and reusable loading or error
+              surfaces.
             </p>
           </div>
-          <div className="shell-pill">Ready for auth + API client wiring</div>
+          <div className="shell-pill">Protected by Clerk</div>
         </header>
 
         {isLoading ? (

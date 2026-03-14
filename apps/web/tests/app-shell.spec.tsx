@@ -12,6 +12,18 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
+const clerkState = vi.hoisted(() => ({
+  signedIn: false,
+}));
+
+vi.mock("@clerk/nextjs", () => ({
+  ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAuth: () => ({
+    isSignedIn: clerkState.signedIn,
+  }),
+  UserButton: () => <button type="button">User menu</button>,
+}));
+
 function ShellStateHarness() {
   const { setGlobalError, startLoading } = useAppShellState();
 
@@ -37,6 +49,8 @@ function ShellStateHarness() {
 
 describe("product shell", () => {
   it("renders the primary product navigation", () => {
+    clerkState.signedIn = false;
+
     render(
       <AppShellProvider>
         <AppShell>
@@ -58,9 +72,12 @@ describe("product shell", () => {
       "href",
       "/settings",
     );
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/sign-in");
   });
 
   it("surfaces shared loading and error banners from the global shell state", () => {
+    clerkState.signedIn = false;
+
     render(
       <AppShellProvider>
         <AppShell>
@@ -75,6 +92,21 @@ describe("product shell", () => {
     expect(screen.getByText(/tracking 1 active shell operation/i)).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/fastapi request failed/i);
     expect(screen.getByRole("alert")).toHaveTextContent(/normalized api errors should surface here/i);
+  });
+
+  it("shows the signed-in shell affordance when a Clerk session exists", () => {
+    clerkState.signedIn = true;
+
+    render(
+      <AppShellProvider>
+        <AppShell>
+          <div>Dashboard body</div>
+        </AppShell>
+      </AppShellProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: /user menu/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /sign in/i })).not.toBeInTheDocument();
   });
 });
 
