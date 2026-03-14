@@ -2,6 +2,7 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import httpx
 import jwt
@@ -13,7 +14,24 @@ from benchloop_api.app import create_app
 from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.db.base import Base
 from benchloop_api.settings.models import UserProviderCredential, UserSettings
+from benchloop_api.settings.validation import (
+    ProviderCredentialValidationError,
+    UnsupportedCredentialProviderError,
+)
 from benchloop_api.users.models import User
+
+
+class StubProviderCredentialValidator:
+    def __init__(self, *, outcomes: dict[str, str | Exception]) -> None:
+        self._outcomes = outcomes
+        self.calls: list[dict[str, str]] = []
+
+    async def validate(self, *, provider: str, api_key: str) -> SimpleNamespace:
+        self.calls.append({"provider": provider, "api_key": api_key})
+        outcome = self._outcomes[provider]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return SimpleNamespace(status=outcome)
 
 
 def request(
@@ -542,3 +560,238 @@ def test_replace_and_delete_credential_are_scoped_to_authenticated_user(
         app.state.encryption_service.decrypt(stored_credential.encrypted_api_key)
         == "sk-other-secret-0000"
     )
+
+
+def test_validate_credential_marks_it_valid_and_persists_timestamp(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    validator = StubProviderCredentialValidator(outcomes={"openai": "valid"})
+    app.state.provider_credential_validator = validator
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="openai",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-valid-secret-1234"),
+            key_label="Primary key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/settings/credentials/{credential_id}/validate",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == str(credential_id)
+    assert payload["provider"] == "openai"
+    assert payload["key_label"] == "Primary key"
+    assert payload["masked_api_key"] == "********1234"
+    assert payload["validation_status"] == "valid"
+    assert payload["last_validated_at"] is not None
+
+    assert validator.calls == [
+        {"provider": "openai", "api_key": "sk-valid-secret-1234"},
+    ]
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.validation_status == "valid"
+    assert stored_credential.last_validated_at is not None
+
+
+def test_validate_credential_marks_it_invalid_when_provider_rejects_key(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    validator = StubProviderCredentialValidator(outcomes={"anthropic": "invalid"})
+    app.state.provider_credential_validator = validator
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="anthropic",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-ant-secret-4321"),
+            key_label="Claude key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/settings/credentials/{credential_id}/validate",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["validation_status"] == "invalid"
+    assert payload["last_validated_at"] is not None
+
+    assert validator.calls == [
+        {"provider": "anthropic", "api_key": "sk-ant-secret-4321"},
+    ]
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.validation_status == "invalid"
+    assert stored_credential.last_validated_at is not None
+
+
+def test_validate_credential_rejects_unsupported_provider_without_mutating_metadata(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    app.state.provider_credential_validator = StubProviderCredentialValidator(
+        outcomes={
+            "mistral": UnsupportedCredentialProviderError(provider="mistral"),
+        }
+    )
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="mistral",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-mistral-secret"),
+            key_label="Unsupported",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/settings/credentials/{credential_id}/validate",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "http_error",
+            "message": "Provider 'mistral' is not supported for credential validation.",
+            "details": None,
+        }
+    }
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.validation_status == "not_validated"
+    assert stored_credential.last_validated_at is None
+
+
+def test_validate_credential_returns_502_when_provider_check_fails(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    app.state.provider_credential_validator = StubProviderCredentialValidator(
+        outcomes={
+            "openai": ProviderCredentialValidationError(provider="openai"),
+        }
+    )
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="openai",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-error-secret-1234"),
+            key_label="Primary key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/settings/credentials/{credential_id}/validate",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": {
+            "code": "http_error",
+            "message": "Credential validation could not be completed for provider 'openai'.",
+            "details": None,
+        }
+    }
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.validation_status == "not_validated"
+    assert stored_credential.last_validated_at is None
+
+
+def test_validate_credential_is_scoped_to_authenticated_user(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    validator = StubProviderCredentialValidator(outcomes={"openai": "valid"})
+    app.state.provider_credential_validator = validator
+
+    with app.state.session_factory() as session:
+        owner = User(clerk_user_id="user_123")
+        other_user = User(clerk_user_id="user_456")
+        session.add_all([owner, other_user])
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=other_user.id,
+            provider="openai",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-other-secret-0000"),
+            key_label="Other key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/settings/credentials/{credential_id}/validate",
+        headers=auth_headers(rsa_private_key, subject="user_123"),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Credential was not found.",
+            "details": None,
+        }
+    }
+    assert validator.calls == []

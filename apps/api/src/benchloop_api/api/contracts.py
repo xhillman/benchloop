@@ -21,6 +21,7 @@ _ERROR_RESPONSE_DESCRIPTIONS = {
     404: "Resource not found.",
     409: "Request conflicts with current state.",
     422: "Request validation failed.",
+    502: "Upstream provider request failed.",
     500: "Unexpected server error.",
 }
 

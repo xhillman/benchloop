@@ -22,11 +22,20 @@ from benchloop_api.settings.service import (
     UserSettingsService,
     mask_api_key,
 )
+from benchloop_api.settings.validation import (
+    ProviderCredentialValidationError,
+    ProviderCredentialValidator,
+    UnsupportedCredentialProviderError,
+    get_provider_credential_validator,
+)
 
 router = APIRouter(
     prefix="/settings",
     tags=["settings"],
-    responses=documented_error_statuses(include_auth=True, extra_statuses=(404, 409)),
+    responses=documented_error_statuses(
+        include_auth=True,
+        extra_statuses=(400, 404, 409, 502),
+    ),
 )
 
 
@@ -243,3 +252,45 @@ async def delete_user_provider_credential(
         ) from exc
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/credentials/{credential_id}/validate",
+    response_model=UserProviderCredentialResponse,
+)
+async def validate_user_provider_credential(
+    credential_id: UUID,
+    current_user: CurrentUser,
+    credentials_service: Annotated[
+        UserProviderCredentialService,
+        Depends(get_user_provider_credential_service),
+    ],
+    credential_validator: Annotated[
+        ProviderCredentialValidator,
+        Depends(get_provider_credential_validator),
+    ],
+    encryption_service: Annotated[EncryptionService, Depends(get_encryption_service)],
+) -> UserProviderCredentialResponse:
+    try:
+        credential = await credentials_service.validate(
+            user_id=current_user.id,
+            credential_id=credential_id,
+            validator=credential_validator,
+        )
+    except UserOwnedResourceNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except UnsupportedCredentialProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except ProviderCredentialValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    return build_user_provider_credential_response(credential, encryption_service)

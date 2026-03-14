@@ -111,6 +111,15 @@ Implemented in `B015`:
   - dedicated credential repository and service keep credential CRUD scoped by `user_id`
   - API responses mask stored key material instead of returning plaintext
 
+Implemented in `B016`:
+
+- `/api/v1/settings/credentials/{credential_id}/validate`
+  - authenticated `POST` performs a provider-specific key check for the caller's stored credential
+  - persists `validation_status` and `last_validated_at` without returning plaintext secrets
+- `benchloop_api.settings.validation`
+  - thin provider credential validation adapters for OpenAI and Anthropic
+  - reusable validator registry aligned with the later execution adapter contract
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

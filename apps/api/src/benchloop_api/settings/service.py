@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
 from benchloop_api.settings.encryption import EncryptionService
 from benchloop_api.settings.models import UserProviderCredential, UserSettings
+from benchloop_api.settings.validation import ProviderCredentialValidator
 from benchloop_api.settings.repository import (
     UserProviderCredentialRepository,
     UserSettingsRepository,
@@ -122,6 +124,29 @@ class UserProviderCredentialService:
         )
         credential.is_active = False
         self._session.flush()
+
+    async def validate(
+        self,
+        *,
+        user_id: UUID,
+        credential_id: UUID,
+        validator: ProviderCredentialValidator,
+    ) -> UserProviderCredential:
+        credential = self._get_active_owned_or_raise(
+            user_id=user_id,
+            credential_id=credential_id,
+        )
+        api_key = self._encryption_service.decrypt(credential.encrypted_api_key)
+        validation_result = await validator.validate(
+            provider=credential.provider,
+            api_key=api_key,
+        )
+        credential.validation_status = validation_result.status
+        credential.last_validated_at = datetime.now(tz=UTC)
+
+        self._session.flush()
+        self._session.refresh(credential)
+        return credential
 
     def _get_active_owned_or_raise(
         self,
