@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
 
+from benchloop_api.api.contracts import ApiResponseModel, build_error_responses
 from benchloop_api.config import get_app_settings
 
-router = APIRouter(tags=["health"])
+router = APIRouter(
+    tags=["health"],
+    responses=build_error_responses(500),
+)
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(ApiResponseModel):
     status: str
     service: str
     environment: str

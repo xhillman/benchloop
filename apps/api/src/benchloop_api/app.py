@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from benchloop_api.api.contracts import API_V1_PREFIX, install_openapi_contract
 from benchloop_api.api.router import api_router
 from benchloop_api.config import get_settings
 from benchloop_api.db.session import create_database_engine, create_session_factory
@@ -34,8 +35,9 @@ def create_app(settings_overrides: Mapping[str, Any] | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    install_openapi_contract(app)
     register_exception_handlers(app)
-    app.include_router(api_router, prefix="/api/v1")
+    app.include_router(api_router, prefix=API_V1_PREFIX)
     app.add_event_handler("shutdown", database_engine.dispose)
 
     return app

@@ -36,7 +36,25 @@ def test_openapi_docs_are_enabled_outside_production() -> None:
     response = request(app, "GET", "/openapi.json")
 
     assert response.status_code == 200
-    assert response.json()["info"]["title"] == "Benchloop API"
+    schema = response.json()
+
+    assert schema["info"]["title"] == "Benchloop API"
+    assert schema["components"]["securitySchemes"] == {
+        "ClerkBearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": (
+                "Use a Clerk-issued session token in the Authorization header "
+                "as `Bearer <token>`."
+            ),
+        }
+    }
+    assert schema["paths"]["/api/v1/health"]["get"]["responses"]["500"]["content"] == {
+        "application/json": {
+            "schema": {"$ref": "#/components/schemas/ErrorEnvelope"},
+        }
+    }
 
 
 def test_openapi_docs_are_disabled_in_production() -> None:

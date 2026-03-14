@@ -31,6 +31,25 @@ Implemented in `B004`:
 - `apps/api/alembic`
   - migration environment and baseline revision scaffold
 
+Implemented in `B005`:
+
+- `benchloop_api.api.contracts`
+  - shared request and response base models with strict public-API defaults
+  - reusable OpenAPI error-response docs built around the shared error envelope
+  - documented Clerk bearer auth scheme injected into OpenAPI
+
+API contract conventions:
+
+- keep public request bodies on `ApiRequestModel`
+  - strips surrounding whitespace from strings
+  - forbids undeclared fields so contracts stay stable for web and agent clients
+- keep public response bodies on `ApiResponseModel`
+  - preserves the same strict field rules and supports loading from ORM or service objects
+- document route-level error envelopes with `build_error_responses(...)`
+  - use the shared `ErrorEnvelope` model instead of ad hoc error shapes
+- keep API routes mounted under the shared `/api/v1` prefix constant
+  - versioning stays centralized instead of being repeated per route module
+
 Local env convention:
 
 - copy `apps/api/.env.example` to `apps/api/.env`, or run `make init-env` from the repo root
