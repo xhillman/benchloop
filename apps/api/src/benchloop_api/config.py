@@ -33,6 +33,10 @@ class AppSettings(BaseSettings):
         default="postgresql+psycopg://benchloop:benchloop@localhost:5432/benchloop",
         validation_alias=AliasChoices("BENCHLOOP_DATABASE_URL", "database_url"),
     )
+    encryption_key: str = Field(
+        default="benchloop-local-dev-encryption-key-change-me",
+        validation_alias=AliasChoices("BENCHLOOP_ENCRYPTION_KEY", "encryption_key"),
+    )
     db_echo: bool = Field(
         default=False,
         validation_alias=AliasChoices("BENCHLOOP_DB_ECHO", "db_echo"),
@@ -84,6 +88,14 @@ class AppSettings(BaseSettings):
         if isinstance(value, list):
             return value
         return ["http://localhost:3000"]
+
+    @field_validator("encryption_key")
+    @classmethod
+    def validate_encryption_key(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Encryption key must not be empty.")
+        return normalized
 
 
 @lru_cache(maxsize=1)

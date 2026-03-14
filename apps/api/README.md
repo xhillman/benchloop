@@ -83,6 +83,14 @@ Implemented in `B012`:
 - `apps/api/alembic/versions/0003_add_settings_tables.py`
   - migration that creates the settings tables and ownership constraints
 
+Implemented in `B013`:
+
+- `benchloop_api.settings.encryption`
+  - server-only encryption abstraction for provider credentials
+  - shared redaction helper for secret-bearing logs and payloads
+- `benchloop_api.app:create_app`
+  - wires a single encryption service into application state for later settings and credential APIs
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`
@@ -105,7 +113,8 @@ Local env convention:
 
 - copy `apps/api/.env.example` to `apps/api/.env`, or run `make init-env` from the repo root
 - local database default: `postgresql+psycopg://benchloop:benchloop@localhost:5432/benchloop`
-- placeholder encryption and Clerk values are committed as examples only
+- `BENCHLOOP_ENCRYPTION_KEY` should be set to a long random app secret; committed values are development-only examples
+- placeholder Clerk values are committed as examples only
 - `BENCHLOOP_CORS_ALLOWED_ORIGINS` accepts a JSON array and remains backward-compatible with comma-separated values
 
 Local commands:

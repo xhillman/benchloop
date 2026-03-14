@@ -78,3 +78,12 @@ def test_http_exceptions_use_structured_error_envelope() -> None:
             "details": None,
         }
     }
+
+
+def test_app_wires_encryption_service() -> None:
+    app = create_app({"encryption_key": "test-encryption-key-material"})
+
+    ciphertext = app.state.encryption_service.encrypt("sk-test-123")
+
+    assert ciphertext != "sk-test-123"
+    assert app.state.encryption_service.decrypt(ciphertext) == "sk-test-123"
