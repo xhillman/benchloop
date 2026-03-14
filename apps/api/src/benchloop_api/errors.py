@@ -23,11 +23,16 @@ def error_response(
     code: str,
     message: str,
     details: Any | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     envelope = ErrorEnvelope(
         error=ErrorDetail(code=code, message=message, details=details),
     )
-    return JSONResponse(status_code=status_code, content=envelope.model_dump())
+    return JSONResponse(
+        status_code=status_code,
+        content=envelope.model_dump(),
+        headers=headers,
+    )
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -37,12 +42,18 @@ def register_exception_handlers(app: FastAPI) -> None:
         exc: StarletteHTTPException,
     ) -> JSONResponse:
         del request
-        code = "not_found" if exc.status_code == status.HTTP_404_NOT_FOUND else "http_error"
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            code = "authentication_failed"
+        elif exc.status_code == status.HTTP_404_NOT_FOUND:
+            code = "not_found"
+        else:
+            code = "http_error"
         return error_response(
             status_code=exc.status_code,
             code=code,
             message=exc.detail if isinstance(exc.detail, str) else "Request failed.",
             details=None if isinstance(exc.detail, str) else exc.detail,
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from benchloop_api.api.contracts import API_V1_PREFIX, install_openapi_contract
 from benchloop_api.api.router import api_router
+from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.config import get_settings
 from benchloop_api.db.session import create_database_engine, create_session_factory
 from benchloop_api.errors import register_exception_handlers
@@ -28,6 +29,7 @@ def create_app(settings_overrides: Mapping[str, Any] | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db_engine = database_engine
     app.state.session_factory = session_factory
+    app.state.auth_verifier = ClerkJwtVerifier(settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,

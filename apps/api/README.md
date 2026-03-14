@@ -50,6 +50,25 @@ API contract conventions:
 - keep API routes mounted under the shared `/api/v1` prefix constant
   - versioning stays centralized instead of being repeated per route module
 
+Implemented in `B008`:
+
+- `benchloop_api.auth`
+  - Clerk JWT verification against the configured JWKS endpoint
+  - reusable authenticated-principal dependency for protected routes
+- `/api/v1/auth/me`
+  - protected API proofpoint that resolves the authenticated Clerk subject
+
+Auth env convention:
+
+- `CLERK_JWKS_URL`
+  - JWKS endpoint used to verify Clerk-issued bearer tokens
+- `CLERK_JWT_ISSUER`
+  - expected token issuer for backend verification
+- `CLERK_JWT_AUDIENCE`
+  - expected audience when session tokens include `aud`
+- `CLERK_JWKS_CACHE_TTL_SECONDS`
+  - in-memory JWKS cache lifetime for the FastAPI process
+
 Local env convention:
 
 - copy `apps/api/.env.example` to `apps/api/.env`, or run `make init-env` from the repo root

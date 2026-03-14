@@ -44,6 +44,25 @@ class AppSettings(BaseSettings):
             "cors_allowed_origins",
         ),
     )
+    clerk_jwks_url: str = Field(
+        default="https://clerk.example.com/.well-known/jwks.json",
+        validation_alias=AliasChoices("CLERK_JWKS_URL", "clerk_jwks_url"),
+    )
+    clerk_jwt_issuer: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CLERK_JWT_ISSUER", "clerk_jwt_issuer"),
+    )
+    clerk_jwt_audience: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CLERK_JWT_AUDIENCE", "clerk_jwt_audience"),
+    )
+    clerk_jwks_cache_ttl_seconds: int = Field(
+        default=300,
+        validation_alias=AliasChoices(
+            "CLERK_JWKS_CACHE_TTL_SECONDS",
+            "clerk_jwks_cache_ttl_seconds",
+        ),
+    )
 
     model_config = SettingsConfigDict(
         env_file=ENV_FILE_PATH,
