@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+const getApiClientMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/api/server", () => ({
+  getApiClient: getApiClientMock,
+}));
+
 import { AppShellProvider, useAppShellState } from "@/components/providers/app-shell-provider";
 import { AppShell } from "@/components/shell/app-shell";
 import DashboardPage from "@/app/(shell)/dashboard/page";
@@ -111,11 +117,28 @@ describe("product shell", () => {
 });
 
 describe("shell routes", () => {
-  it("renders the dashboard page shell", () => {
-    render(<DashboardPage />);
+  it("renders the dashboard page shell with API bootstrap data", async () => {
+    getApiClientMock.mockResolvedValue({
+      auth: {
+        getMe: vi.fn(async () => ({
+          external_user_id: "user_123",
+        })),
+      },
+      health: {
+        getStatus: vi.fn(async () => ({
+          environment: "local",
+          service: "benchloop-api",
+          status: "ok",
+        })),
+      },
+    });
+
+    render(await DashboardPage());
 
     expect(screen.getByRole("heading", { level: 1, name: /experiment control plane/i })).toBeInTheDocument();
     expect(screen.getByText(/fastapi stays canonical/i)).toBeInTheDocument();
+    expect(screen.getByText(/ok via benchloop-api/i)).toBeInTheDocument();
+    expect(screen.getByText("user_123")).toBeInTheDocument();
   });
 
   it("renders placeholder shells for the remaining primary sections", () => {

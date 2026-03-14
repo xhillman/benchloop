@@ -1,7 +1,37 @@
+import { ErrorState } from "@/components/states/error-state";
 import { EmptyState } from "@/components/states/empty-state";
 import { publicAppConfig } from "@/lib/app-config";
+import { ApiClientError } from "@/lib/api/client";
+import { getApiClient } from "@/lib/api/server";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  let apiBootstrap: {
+    externalUserId: string;
+    healthStatus: string;
+    serviceName: string;
+  } | null = null;
+  let apiBootstrapError: string | null = null;
+
+  try {
+    const apiClient = await getApiClient();
+    const [healthStatus, currentUser] = await Promise.all([
+      apiClient.health.getStatus(),
+      apiClient.auth.getMe(),
+    ]);
+
+    apiBootstrap = {
+      externalUserId: currentUser.external_user_id,
+      healthStatus: healthStatus.status,
+      serviceName: healthStatus.service,
+    };
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      apiBootstrapError = `${error.message} (${error.status})`;
+    } else {
+      throw error;
+    }
+  }
+
   return (
     <>
       <section className="shell-panel page-header">
@@ -21,20 +51,36 @@ export default function DashboardPage() {
             The web app remains a client. API behavior, ownership rules, and provider execution
             stay on the backend.
           </p>
-          <div className="status-list">
-            <div className="status-item">
-              <span>App URL</span>
-              <strong>{publicAppConfig.appUrl}</strong>
+          {apiBootstrap ? (
+            <div className="status-list">
+              <div className="status-item">
+                <span>App URL</span>
+                <strong>{publicAppConfig.appUrl}</strong>
+              </div>
+              <div className="status-item">
+                <span>API base URL</span>
+                <strong>{publicAppConfig.apiBaseUrl}</strong>
+              </div>
+              <div className="status-item">
+                <span>API health</span>
+                <strong>
+                  {apiBootstrap.healthStatus} via {apiBootstrap.serviceName}
+                </strong>
+              </div>
+              <div className="status-item">
+                <span>Authenticated subject</span>
+                <strong>{apiBootstrap.externalUserId}</strong>
+              </div>
             </div>
-            <div className="status-item">
-              <span>API base URL</span>
-              <strong>{publicAppConfig.apiBaseUrl}</strong>
-            </div>
-            <div className="status-item">
-              <span>Signed-in shell</span>
-              <strong>Protected route group with Clerk session gating</strong>
-            </div>
-          </div>
+          ) : (
+            <ErrorState
+              title="The dashboard could not load its API bootstrap data"
+              message={
+                apiBootstrapError ??
+                "The shared client should surface FastAPI failures as readable UI state."
+              }
+            />
+          )}
         </article>
 
         <article className="shell-panel">

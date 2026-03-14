@@ -9,7 +9,7 @@ Current ownership:
 - `components`
   - shared shell chrome, providers, and reusable state components
 - `lib`
-  - app-level configuration and future client helpers
+  - app-level configuration plus the shared FastAPI client entrypoints
 - `tests`
   - frontend automated tests for the shell and route surfaces
 
@@ -33,6 +33,14 @@ Implemented in `B007`:
   - shell routes require a Clerk session and surface a live user menu instead of placeholder auth copy
 - Local auth env convention
   - committed placeholders for Clerk publishable and secret keys plus explicit local auth route paths
+
+Implemented in `B011`:
+
+- Typed FastAPI client layer
+  - shared request helper under `lib/api/client.ts` with normalized FastAPI error handling
+  - `lib/api/server.ts` for Clerk-authenticated server calls and `lib/api/browser.ts` for client components
+- First live API-backed shell surface
+  - dashboard bootstrap reads FastAPI health plus the authenticated subject through the shared client instead of placeholder-only copy
 
 Local commands:
 
