@@ -1,9 +1,15 @@
-from fastapi import HTTPException, Request, Security, status
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
 
 from benchloop_api.api.contracts import AUTH_SCHEME_DESCRIPTION, AUTH_SCHEME_NAME
 from benchloop_api.auth.models import AuthenticatedPrincipal
 from benchloop_api.auth.service import ClerkJwtVerifier, TokenVerificationError
+from benchloop_api.db.session import get_db_session
+from benchloop_api.users.models import User
+from benchloop_api.users.service import UserSyncService
 
 _bearer_scheme = HTTPBearer(
     auto_error=False,
@@ -14,6 +20,12 @@ _bearer_scheme = HTTPBearer(
 
 def get_auth_verifier(request: Request) -> ClerkJwtVerifier:
     return request.app.state.auth_verifier
+
+
+def get_user_sync_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> UserSyncService:
+    return UserSyncService(session)
 
 
 async def require_authenticated_principal(
@@ -36,3 +48,13 @@ async def require_authenticated_principal(
             detail="Authentication required.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+
+async def require_current_user(
+    principal: Annotated[AuthenticatedPrincipal, Depends(require_authenticated_principal)],
+    user_sync_service: Annotated[UserSyncService, Depends(get_user_sync_service)],
+) -> User:
+    return user_sync_service.sync_authenticated_principal(principal)
+
+
+CurrentUser = Annotated[User, Depends(require_current_user)]

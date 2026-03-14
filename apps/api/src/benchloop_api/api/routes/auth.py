@@ -1,10 +1,7 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from benchloop_api.api.contracts import ApiResponseModel, documented_error_statuses
-from benchloop_api.auth.dependencies import require_authenticated_principal
-from benchloop_api.auth.models import AuthenticatedPrincipal
+from benchloop_api.auth.dependencies import CurrentUser
 
 router = APIRouter(
     prefix="/auth",
@@ -19,6 +16,6 @@ class AuthMeResponse(ApiResponseModel):
 
 @router.get("/me", response_model=AuthMeResponse)
 async def read_authenticated_user(
-    principal: Annotated[AuthenticatedPrincipal, Depends(require_authenticated_principal)],
+    current_user: CurrentUser,
 ) -> AuthMeResponse:
-    return AuthMeResponse(external_user_id=principal.subject)
+    return AuthMeResponse(external_user_id=current_user.clerk_user_id)

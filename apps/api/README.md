@@ -58,6 +58,16 @@ Implemented in `B008`:
 - `/api/v1/auth/me`
   - protected API proofpoint that resolves the authenticated Clerk subject
 
+Implemented in `B009`:
+
+- `benchloop_api.users`
+  - internal `users` table model plus repository and sync service
+- `benchloop_api.auth.require_current_user`
+  - resolves the authenticated Clerk principal to a persisted internal user row
+  - creates the user on first authenticated access and refreshes synced profile data when present
+- `/api/v1/auth/me`
+  - protected API proofpoint that now exercises `CurrentUser` resolution
+
 Auth env convention:
 
 - `CLERK_JWKS_URL`
