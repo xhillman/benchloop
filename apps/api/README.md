@@ -99,6 +99,18 @@ Implemented in `B014`:
 - `benchloop_api.settings`
   - dedicated repository and service keep settings reads and writes scoped by `user_id`
 
+Implemented in `B015`:
+
+- `/api/v1/settings/credentials`
+  - authenticated `GET` lists the caller's active provider credentials as masked metadata only
+  - authenticated `POST` creates a new encrypted provider credential and rejects duplicate active providers
+- `/api/v1/settings/credentials/{credential_id}`
+  - authenticated `PUT` replaces a stored credential secret without exposing plaintext and resets validation state
+  - authenticated `DELETE` soft-deletes the credential so it cannot be used for future execution
+- `benchloop_api.settings`
+  - dedicated credential repository and service keep credential CRUD scoped by `user_id`
+  - API responses mask stored key material instead of returning plaintext
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from benchloop_api.app import create_app
 from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.db.base import Base
-from benchloop_api.settings.models import UserSettings
+from benchloop_api.settings.models import UserProviderCredential, UserSettings
 from benchloop_api.users.models import User
 
 
@@ -254,3 +254,291 @@ def test_update_settings_is_scoped_to_authenticated_user(
     assert other_settings.default_provider == "openai"
     assert other_settings.default_model == "gpt-4.1"
     assert other_settings.timezone == "America/New_York"
+
+
+def test_credential_endpoints_require_authentication() -> None:
+    app = create_app()
+
+    response = request(app, "GET", "/api/v1/settings/credentials")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
+def test_create_and_list_credentials_return_masked_metadata_only(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    create_response = request(
+        app,
+        "POST",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "provider": "openai",
+            "api_key": "sk-test-secret-1234",
+            "key_label": "Primary key",
+        },
+    )
+
+    assert create_response.status_code == 201
+    created_payload = create_response.json()
+    assert created_payload["provider"] == "openai"
+    assert created_payload["key_label"] == "Primary key"
+    assert created_payload["masked_api_key"] == "********1234"
+    assert created_payload["validation_status"] == "not_validated"
+    assert created_payload["last_validated_at"] is None
+    assert created_payload["created_at"] is not None
+    assert created_payload["updated_at"] is not None
+    assert "api_key" not in created_payload
+    assert "encrypted_api_key" not in created_payload
+
+    list_response = request(
+        app,
+        "GET",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json() == [created_payload]
+
+    with app.state.session_factory() as session:
+        user = session.scalar(select(User).where(User.clerk_user_id == "user_123"))
+        credentials = session.scalars(select(UserProviderCredential)).all()
+
+    assert user is not None
+    assert len(credentials) == 1
+    assert credentials[0].user_id == user.id
+    assert credentials[0].provider == "openai"
+    assert credentials[0].key_label == "Primary key"
+    assert credentials[0].encrypted_api_key != "sk-test-secret-1234"
+    assert (
+        app.state.encryption_service.decrypt(credentials[0].encrypted_api_key)
+        == "sk-test-secret-1234"
+    )
+
+
+def test_create_credential_rejects_duplicate_active_provider_for_same_user(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    first_response = request(
+        app,
+        "POST",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "provider": "openai",
+            "api_key": "sk-test-secret-1234",
+            "key_label": "Primary key",
+        },
+    )
+    assert first_response.status_code == 201
+
+    duplicate_response = request(
+        app,
+        "POST",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "provider": "openai",
+            "api_key": "sk-test-secret-9999",
+            "key_label": "Backup key",
+        },
+    )
+
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json() == {
+        "error": {
+            "code": "http_error",
+            "message": "An active credential already exists for provider 'openai'.",
+            "details": None,
+        }
+    }
+
+
+def test_replace_credential_updates_secret_and_resets_validation_metadata(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="openai",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-old-secret-1234"),
+            key_label="Primary key",
+            validation_status="valid",
+            last_validated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    replace_response = request(
+        app,
+        "PUT",
+        f"/api/v1/settings/credentials/{credential_id}",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "api_key": "sk-new-secret-5678",
+            "key_label": "Rotated key",
+        },
+    )
+
+    assert replace_response.status_code == 200
+    assert replace_response.json() == {
+        "id": str(credential_id),
+        "provider": "openai",
+        "key_label": "Rotated key",
+        "masked_api_key": "********5678",
+        "validation_status": "not_validated",
+        "last_validated_at": None,
+        "created_at": replace_response.json()["created_at"],
+        "updated_at": replace_response.json()["updated_at"],
+    }
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.key_label == "Rotated key"
+    assert stored_credential.validation_status == "not_validated"
+    assert stored_credential.last_validated_at is None
+    assert stored_credential.encrypted_api_key != "sk-new-secret-5678"
+    assert (
+        app.state.encryption_service.decrypt(stored_credential.encrypted_api_key)
+        == "sk-new-secret-5678"
+    )
+
+
+def test_delete_credential_marks_it_inactive_and_removes_it_from_list(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        user = User(clerk_user_id="user_123")
+        session.add(user)
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=user.id,
+            provider="anthropic",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-ant-secret-4321"),
+            key_label="Claude key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    delete_response = request(
+        app,
+        "DELETE",
+        f"/api/v1/settings/credentials/{credential_id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert delete_response.status_code == 204
+    assert delete_response.content == b""
+
+    list_response = request(
+        app,
+        "GET",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.is_active is False
+
+
+def test_replace_and_delete_credential_are_scoped_to_authenticated_user(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        owner = User(clerk_user_id="user_123")
+        other_user = User(clerk_user_id="user_456")
+        session.add_all([owner, other_user])
+        session.flush()
+        credential = UserProviderCredential(
+            user_id=other_user.id,
+            provider="openai",
+            encrypted_api_key=app.state.encryption_service.encrypt("sk-other-secret-0000"),
+            key_label="Other key",
+        )
+        session.add(credential)
+        session.commit()
+        credential_id = credential.id
+
+    replace_response = request(
+        app,
+        "PUT",
+        f"/api/v1/settings/credentials/{credential_id}",
+        headers=auth_headers(rsa_private_key, subject="user_123"),
+        json_body={
+            "api_key": "sk-new-secret-5678",
+            "key_label": "Rotated key",
+        },
+    )
+
+    assert replace_response.status_code == 404
+    assert replace_response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Credential was not found.",
+            "details": None,
+        }
+    }
+
+    delete_response = request(
+        app,
+        "DELETE",
+        f"/api/v1/settings/credentials/{credential_id}",
+        headers=auth_headers(rsa_private_key, subject="user_123"),
+    )
+
+    assert delete_response.status_code == 404
+    assert delete_response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Credential was not found.",
+            "details": None,
+        }
+    }
+
+    with app.state.session_factory() as session:
+        stored_credential = session.get(UserProviderCredential, credential_id)
+
+    assert stored_credential is not None
+    assert stored_credential.is_active is True
+    assert stored_credential.key_label == "Other key"
+    assert (
+        app.state.encryption_service.decrypt(stored_credential.encrypted_api_key)
+        == "sk-other-secret-0000"
+    )
