@@ -68,6 +68,20 @@ Implemented in `B009`:
 - `/api/v1/auth/me`
   - protected API proofpoint that now exercises `CurrentUser` resolution
 
+Implemented in `B010`:
+
+- `benchloop_api.ownership`
+  - `UserOwnedMixin` adds the required `user_id` foreign key for user-owned tables
+  - `UserOwnedRepository` only exposes user-scoped list, fetch, and delete helpers
+  - `UserOwnedService` turns missing-or-cross-user access into a closed `UserOwnedResourceNotFoundError`
+
+Ownership conventions:
+
+- user-owned SQLAlchemy models should compose `UserOwnedMixin`
+- repositories for user-owned resources should build on `UserOwnedRepository`
+- service methods for user-owned resources should accept `user_id` explicitly and use `UserOwnedService` or the same not-found-on-cross-user pattern
+- do not add repository methods that fetch user-owned records by `id` alone
+
 Auth env convention:
 
 - `CLERK_JWKS_URL`
