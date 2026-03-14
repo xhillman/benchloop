@@ -1,4 +1,4 @@
-.PHONY: help check-structure init-env postgres-up postgres-down postgres-logs local-up api-sync api-dev api-test api-migrate api-revision
+.PHONY: help check-structure init-env postgres-up postgres-down postgres-logs local-up api-sync api-dev api-test api-migrate api-revision web-install web-dev web-lint web-typecheck web-test web-build
 
 help:
 	@echo "Benchloop repository commands"
@@ -15,6 +15,12 @@ help:
 	@echo "  make api-test         Run the FastAPI tests"
 	@echo "  make api-migrate      Apply Alembic migrations for the API package"
 	@echo "  make api-revision     Generate an Alembic revision (requires MESSAGE=...)"
+	@echo "  make web-install      Install the web app dependencies"
+	@echo "  make web-dev          Run the Next.js app locally"
+	@echo "  make web-lint         Lint the web app"
+	@echo "  make web-typecheck    Run the web TypeScript checks"
+	@echo "  make web-test         Run the web test suite"
+	@echo "  make web-build        Build the web app for production verification"
 
 check-structure:
 	@test -d apps/api
@@ -53,3 +59,21 @@ api-migrate:
 api-revision:
 	@test -n "$(MESSAGE)" || (echo "Usage: make api-revision MESSAGE='describe change'" && exit 1)
 	@uv run --directory apps/api --group dev alembic revision --autogenerate -m "$(MESSAGE)"
+
+web-install:
+	@npm ci --prefix apps/web
+
+web-dev:
+	@npm run --prefix apps/web dev
+
+web-lint:
+	@npm run --prefix apps/web lint
+
+web-typecheck:
+	@npm run --prefix apps/web typecheck
+
+web-test:
+	@npm run --prefix apps/web test -- --run
+
+web-build:
+	@npm run --prefix apps/web build

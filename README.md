@@ -21,17 +21,20 @@ Prerequisites:
 
 - Docker with Compose support
 - `uv`
+- Node.js with `npm`
 
 Startup path:
 
 1. Run `make local-up`.
 2. Run `make api-sync` to create the pinned Python 3.12 API environment from `apps/api/uv.lock`.
-3. Run `make api-dev` to boot the FastAPI runtime with the FastAPI CLI.
-4. Review the generated env files and replace placeholder secrets before wiring real app runtimes:
+3. Run `make web-install` to install the committed Next.js dependencies for `apps/web`.
+4. Run `make api-dev` to boot the FastAPI runtime with the FastAPI CLI.
+5. Run `make web-dev` in a second terminal to boot the Next.js product shell on `http://localhost:3000`.
+6. Review the generated env files and replace placeholder secrets before wiring real app runtimes:
    - `/.env`
    - `/apps/api/.env`
    - `/apps/web/.env.local`
-5. When you are done, run `make postgres-down`.
+7. When you are done, run `make postgres-down`.
 
 What `make local-up` does:
 
@@ -44,4 +47,4 @@ Current status:
 - FastAPI runtime scaffolding is ready through `B003`
 - SQLAlchemy base wiring and Alembic scaffolding are ready through `B004`
 - the API uses a `uv`-managed, locked Python environment under `apps/api`
-- Next.js runtime scaffolding lands in `B006`
+- the Next.js product shell, route groups, and frontend checks are ready through `B006`
