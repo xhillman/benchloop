@@ -91,6 +91,14 @@ Implemented in `B013`:
 - `benchloop_api.app:create_app`
   - wires a single encryption service into application state for later settings and credential APIs
 
+Implemented in `B014`:
+
+- `/api/v1/settings`
+  - authenticated `GET` returns the caller's default provider, model, and timezone settings
+  - authenticated `PUT` creates or replaces those profile-level defaults for the current user only
+- `benchloop_api.settings`
+  - dedicated repository and service keep settings reads and writes scoped by `user_id`
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`
