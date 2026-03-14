@@ -9,6 +9,7 @@ ALEMBIC_INI_PATH = API_DIR / "alembic.ini"
 
 
 def get_target_metadata():
+    import benchloop_api.settings.models  # noqa: F401
     import benchloop_api.users.models  # noqa: F401
 
     return Base.metadata

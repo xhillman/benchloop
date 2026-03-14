@@ -75,6 +75,14 @@ Implemented in `B010`:
   - `UserOwnedRepository` only exposes user-scoped list, fetch, and delete helpers
   - `UserOwnedService` turns missing-or-cross-user access into a closed `UserOwnedResourceNotFoundError`
 
+Implemented in `B012`:
+
+- `benchloop_api.settings`
+  - SQLAlchemy models for `user_settings` and `user_provider_credentials`
+  - schema choices aligned with provider defaults, encrypted key storage, and validation metadata
+- `apps/api/alembic/versions/0003_add_settings_tables.py`
+  - migration that creates the settings tables and ownership constraints
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`
