@@ -3,17 +3,31 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from benchloop_api.configs.models import Config
+from benchloop_api.configs.repository import ConfigRepository
 from benchloop_api.execution.adapters import (
     ProviderAdapterRegistry,
     ProviderExecutionError,
     SingleShotProviderRequest,
 )
+from benchloop_api.execution.rendering import PromptRenderingError
 from benchloop_api.execution.snapshots import RunSnapshotBundle
+from benchloop_api.execution.snapshots import build_run_snapshot_bundle
+from benchloop_api.experiments.repository import ExperimentRepository
+from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
 from benchloop_api.runs.models import Run
 from benchloop_api.runs.service import RunService
 from benchloop_api.settings.encryption import EncryptionService
 from benchloop_api.settings.repository import UserProviderCredentialRepository
 from benchloop_api.test_cases.models import TestCase
+from benchloop_api.test_cases.repository import TestCaseRepository
+
+
+class UnsupportedExecutionWorkflowError(ValueError):
+    def __init__(self, *, workflow_mode: str) -> None:
+        self.workflow_mode = workflow_mode
+        super().__init__(
+            f"Config workflow mode '{workflow_mode}' is not supported by single-shot execution."
+        )
 
 
 class SingleShotExecutionService:
@@ -101,3 +115,136 @@ class SingleShotExecutionService:
 
         self._session.refresh(run)
         return run
+
+
+class RunLaunchService:
+    def __init__(
+        self,
+        *,
+        session: Session,
+        execution_service: SingleShotExecutionService,
+    ) -> None:
+        self._session = session
+        self._execution_service = execution_service
+        self._experiment_repository = ExperimentRepository(session)
+        self._config_repository = ConfigRepository(session)
+        self._test_case_repository = TestCaseRepository(session)
+
+    async def launch_single(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        test_case_id: UUID,
+        config_id: UUID,
+    ) -> Run:
+        self._get_experiment_or_raise(user_id=user_id, experiment_id=experiment_id)
+        test_case = self._get_test_case_or_raise(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            test_case_id=test_case_id,
+        )
+        config = self._get_config_or_raise(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            config_id=config_id,
+        )
+        self._ensure_single_shot(config=config)
+        snapshot_bundle = self._build_snapshot_bundle(config=config, test_case=test_case)
+        return await self._execution_service.execute_single_shot(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            test_case=test_case,
+            config=config,
+            snapshot_bundle=snapshot_bundle,
+        )
+
+    async def launch_batch(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        test_case_id: UUID,
+        config_ids: list[UUID],
+    ) -> list[Run]:
+        runs: list[Run] = []
+        for config_id in config_ids:
+            runs.append(
+                await self.launch_single(
+                    user_id=user_id,
+                    experiment_id=experiment_id,
+                    test_case_id=test_case_id,
+                    config_id=config_id,
+                )
+            )
+        return runs
+
+    def _build_snapshot_bundle(
+        self,
+        *,
+        config: Config,
+        test_case: TestCase,
+    ) -> RunSnapshotBundle:
+        try:
+            return build_run_snapshot_bundle(
+                config=config,
+                test_case=test_case,
+            )
+        except PromptRenderingError:
+            raise
+
+    def _ensure_single_shot(self, *, config: Config) -> None:
+        if config.workflow_mode != "single_shot":
+            raise UnsupportedExecutionWorkflowError(workflow_mode=config.workflow_mode)
+
+    def _get_experiment_or_raise(self, *, user_id: UUID, experiment_id: UUID) -> None:
+        experiment = self._experiment_repository.get_owned(
+            user_id=user_id,
+            resource_id=experiment_id,
+        )
+        if experiment is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Experiment",
+                resource_id=experiment_id,
+                user_id=user_id,
+            )
+
+    def _get_config_or_raise(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        config_id: UUID,
+    ) -> Config:
+        config = self._config_repository.get_owned_for_experiment(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            config_id=config_id,
+        )
+        if config is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Config",
+                resource_id=config_id,
+                user_id=user_id,
+            )
+        return config
+
+    def _get_test_case_or_raise(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        test_case_id: UUID,
+    ) -> TestCase:
+        test_case = self._test_case_repository.get_owned_for_experiment(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            test_case_id=test_case_id,
+        )
+        if test_case is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Test case",
+                resource_id=test_case_id,
+                user_id=user_id,
+            )
+        return test_case

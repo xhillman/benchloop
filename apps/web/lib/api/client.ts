@@ -88,6 +88,68 @@ export type ConfigResponse = {
   updated_at: string;
 };
 
+export type RunConfigSnapshot = {
+  config_id: string;
+  name: string;
+  version_label: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  workflow_mode: string;
+  system_prompt_template: string | null;
+  rendered_system_prompt: string | null;
+  user_prompt_template: string;
+  rendered_user_prompt: string;
+  temperature: number;
+  max_output_tokens: number;
+  top_p: number | null;
+  context_bundle_id: string | null;
+  tags: string[];
+  is_baseline: boolean;
+};
+
+export type RunInputSnapshot = {
+  test_case_id: string;
+  input_text: string;
+  expected_output_text: string | null;
+  notes: string | null;
+  tags: string[];
+};
+
+export type RunContextSnapshot = {
+  source: "bundle" | "inline";
+  bundle_id: string | null;
+  name: string | null;
+  content_text: string;
+  notes: string | null;
+};
+
+export type RunResponse = {
+  id: string;
+  experiment_id: string;
+  test_case_id: string;
+  config_id: string;
+  credential_id: string | null;
+  status: string;
+  provider: string;
+  model: string;
+  workflow_mode: string;
+  config_snapshot: RunConfigSnapshot;
+  input_snapshot: RunInputSnapshot;
+  context_snapshot: RunContextSnapshot | null;
+  output_text: string | null;
+  error_message: string | null;
+  usage_input_tokens: number | null;
+  usage_output_tokens: number | null;
+  usage_total_tokens: number | null;
+  latency_ms: number | null;
+  estimated_cost_usd: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ListExperimentsRequest = {
   search?: string | null;
   tags?: string[];
@@ -131,6 +193,16 @@ export type CreateConfigRequest = {
 };
 
 export type UpdateConfigRequest = CreateConfigRequest;
+
+export type LaunchRunRequest = {
+  test_case_id: string;
+  config_id: string;
+};
+
+export type LaunchBatchRunsRequest = {
+  test_case_id: string;
+  config_ids: string[];
+};
 
 export type CreateUserProviderCredentialRequest = {
   provider: string;
@@ -334,6 +406,16 @@ export function createApiClient({
     experiments: {
       cloneConfig: (experimentId: string, configId: string) =>
         request<ConfigResponse>(`/api/v1/experiments/${experimentId}/configs/${configId}/clone`, {
+          method: "POST",
+        }),
+      launchBatchRuns: (experimentId: string, payload: LaunchBatchRunsRequest) =>
+        request<RunResponse[]>(`/api/v1/experiments/${experimentId}/runs/batch`, {
+          body: payload,
+          method: "POST",
+        }),
+      launchRun: (experimentId: string, payload: LaunchRunRequest) =>
+        request<RunResponse>(`/api/v1/experiments/${experimentId}/runs`, {
+          body: payload,
           method: "POST",
         }),
       createConfig: (experimentId: string, payload: CreateConfigRequest) =>

@@ -490,6 +490,9 @@ export function ExperimentConfigsWorkspace({
                   rows={5}
                   value={userPromptTemplate}
                 />
+                <small className="run-helper-copy">
+                  Use `{"{{input}}"}` for the saved test case input in single-shot runs.
+                </small>
               </label>
 
               <label className="settings-field">

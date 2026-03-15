@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useState, type FormEvent } from "react";
 
 import { ExperimentConfigsWorkspace } from "@/components/experiments/experiment-configs-workspace";
+import { ExperimentRunsWorkspace } from "@/components/experiments/experiment-runs-workspace";
 import { ExperimentTestCasesWorkspace } from "@/components/experiments/experiment-test-cases-workspace";
 import { useAppShellState } from "@/components/providers/app-shell-provider";
 import { useApiClient } from "@/lib/api/browser";
@@ -31,16 +32,12 @@ type FeedbackState =
   | null;
 
 const tabCopy: Record<
-  Exclude<DetailTab, "configs" | "overview" | "test-cases">,
+  Exclude<DetailTab, "configs" | "overview" | "runs" | "test-cases">,
   {
     heading: string;
     description: string;
   }
 > = {
-  runs: {
-    heading: "Runs tab placeholder",
-    description: "Later execution work will turn this lane into the run history surface for the experiment.",
-  },
   compare: {
     heading: "Compare tab placeholder",
     description: "Manual compare and evaluation will land here once run outputs exist to judge side by side.",
@@ -308,6 +305,12 @@ export function ExperimentDetailShell({
           />
         ) : activeTab === "configs" ? (
           <ExperimentConfigsWorkspace experimentId={experiment.id} initialConfigs={initialConfigs} />
+        ) : activeTab === "runs" ? (
+          <ExperimentRunsWorkspace
+            experimentId={experiment.id}
+            initialConfigs={initialConfigs}
+            initialTestCases={initialTestCases}
+          />
         ) : (
           <div className="experiment-tab-panel" role="tabpanel">
             <span className="state-badge">{tabs.find((tab) => tab.value === activeTab)?.label}</span>

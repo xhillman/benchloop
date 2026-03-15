@@ -29,6 +29,8 @@ function buildBrowserClientMock() {
   return {
     experiments: {
       cloneConfig: vi.fn(),
+      launchBatchRuns: vi.fn(),
+      launchRun: vi.fn(),
       createConfig: vi.fn(),
       create: vi.fn(),
       createTestCase: vi.fn(),
@@ -751,6 +753,262 @@ describe("experiment detail shell", () => {
 
     await waitFor(() => {
       expect(browserClient.experiments.deleteConfig).toHaveBeenCalledWith("exp_1", "cfg_2");
+    });
+  });
+
+  it("launches single and multi-config runs from the runs tab", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.launchRun.mockResolvedValue({
+      id: "run_1",
+      experiment_id: "exp_1",
+      test_case_id: "case_1",
+      config_id: "cfg_1",
+      credential_id: "cred_1",
+      status: "completed",
+      provider: "openai",
+      model: "gpt-4.1-mini-2025-04-14",
+      workflow_mode: "single_shot",
+      config_snapshot: {
+        config_id: "cfg_1",
+        name: "Concise answer",
+        version_label: "v1",
+        description: "Primary baseline.",
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        workflow_mode: "single_shot",
+        system_prompt_template: "You are a concise support assistant.",
+        rendered_system_prompt: "You are a concise support assistant.",
+        user_prompt_template: "Reply to this ticket: {{input}}",
+        rendered_user_prompt:
+          "Reply to this ticket: Customer asks for a refund after duplicate billing.",
+        temperature: 0.2,
+        max_output_tokens: 350,
+        top_p: 0.9,
+        context_bundle_id: null,
+        tags: ["baseline"],
+        is_baseline: true,
+      },
+      input_snapshot: {
+        test_case_id: "case_1",
+        input_text: "Customer asks for a refund after duplicate billing.",
+        expected_output_text: "Acknowledge the issue and request account details.",
+        notes: "Baseline support case.",
+        tags: ["billing", "refund"],
+      },
+      context_snapshot: null,
+      output_text: "Refund approved.",
+      error_message: null,
+      usage_input_tokens: 111,
+      usage_output_tokens: 29,
+      usage_total_tokens: 140,
+      latency_ms: 245,
+      estimated_cost_usd: null,
+      started_at: "2025-01-05T00:00:00Z",
+      finished_at: "2025-01-05T00:00:01Z",
+      created_at: "2025-01-05T00:00:00Z",
+      updated_at: "2025-01-05T00:00:01Z",
+    });
+    browserClient.experiments.launchBatchRuns.mockResolvedValue([
+      {
+        id: "run_2",
+        experiment_id: "exp_1",
+        test_case_id: "case_1",
+        config_id: "cfg_1",
+        credential_id: "cred_1",
+        status: "completed",
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        workflow_mode: "single_shot",
+        config_snapshot: {
+          config_id: "cfg_1",
+          name: "Concise answer",
+          version_label: "v1",
+          description: "Primary baseline.",
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          workflow_mode: "single_shot",
+          system_prompt_template: "You are a concise support assistant.",
+          rendered_system_prompt: "You are a concise support assistant.",
+          user_prompt_template: "Reply to this ticket: {{input}}",
+          rendered_user_prompt:
+            "Reply to this ticket: Customer asks for a refund after duplicate billing.",
+          temperature: 0.2,
+          max_output_tokens: 350,
+          top_p: 0.9,
+          context_bundle_id: null,
+          tags: ["baseline"],
+          is_baseline: true,
+        },
+        input_snapshot: {
+          test_case_id: "case_1",
+          input_text: "Customer asks for a refund after duplicate billing.",
+          expected_output_text: "Acknowledge the issue and request account details.",
+          notes: "Baseline support case.",
+          tags: ["billing", "refund"],
+        },
+        context_snapshot: null,
+        output_text: "Refund approved.",
+        error_message: null,
+        usage_input_tokens: 111,
+        usage_output_tokens: 29,
+        usage_total_tokens: 140,
+        latency_ms: 245,
+        estimated_cost_usd: null,
+        started_at: "2025-01-05T00:01:00Z",
+        finished_at: "2025-01-05T00:01:01Z",
+        created_at: "2025-01-05T00:01:00Z",
+        updated_at: "2025-01-05T00:01:01Z",
+      },
+      {
+        id: "run_3",
+        experiment_id: "exp_1",
+        test_case_id: "case_1",
+        config_id: "cfg_2",
+        credential_id: "cred_2",
+        status: "failed",
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-latest",
+        workflow_mode: "single_shot",
+        config_snapshot: {
+          config_id: "cfg_2",
+          name: "Thorough answer",
+          version_label: "v2",
+          description: "Anthropic variant.",
+          provider: "anthropic",
+          model: "claude-3-5-sonnet-latest",
+          workflow_mode: "single_shot",
+          system_prompt_template: "You are a careful support assistant.",
+          rendered_system_prompt: "You are a careful support assistant.",
+          user_prompt_template: "Review this issue: {{input}}",
+          rendered_user_prompt:
+            "Review this issue: Customer asks for a refund after duplicate billing.",
+          temperature: 0.3,
+          max_output_tokens: 500,
+          top_p: null,
+          context_bundle_id: null,
+          tags: ["thorough"],
+          is_baseline: false,
+        },
+        input_snapshot: {
+          test_case_id: "case_1",
+          input_text: "Customer asks for a refund after duplicate billing.",
+          expected_output_text: "Acknowledge the issue and request account details.",
+          notes: "Baseline support case.",
+          tags: ["billing", "refund"],
+        },
+        context_snapshot: null,
+        output_text: null,
+        error_message: "Authentication failed for provider 'anthropic'.",
+        usage_input_tokens: null,
+        usage_output_tokens: null,
+        usage_total_tokens: null,
+        latency_ms: null,
+        estimated_cost_usd: null,
+        started_at: "2025-01-05T00:02:00Z",
+        finished_at: "2025-01-05T00:02:01Z",
+        created_at: "2025-01-05T00:02:00Z",
+        updated_at: "2025-01-05T00:02:01Z",
+      },
+    ]);
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialConfigs={[
+            {
+              id: "cfg_1",
+              experiment_id: "exp_1",
+              name: "Concise answer",
+              version_label: "v1",
+              description: "Primary baseline.",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "single_shot",
+              system_prompt: "You are a concise support assistant.",
+              user_prompt_template: "Reply to this ticket: {{input}}",
+              temperature: 0.2,
+              max_output_tokens: 350,
+              top_p: 0.9,
+              context_bundle_id: null,
+              tags: ["baseline"],
+              is_baseline: true,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+            {
+              id: "cfg_2",
+              experiment_id: "exp_1",
+              name: "Thorough answer",
+              version_label: "v2",
+              description: "Anthropic variant.",
+              provider: "anthropic",
+              model: "claude-3-5-sonnet-latest",
+              workflow_mode: "single_shot",
+              system_prompt: "You are a careful support assistant.",
+              user_prompt_template: "Review this issue: {{input}}",
+              temperature: 0.3,
+              max_output_tokens: 500,
+              top_p: null,
+              context_bundle_id: null,
+              tags: ["thorough"],
+              is_baseline: false,
+              created_at: "2025-01-03T00:00:00Z",
+              updated_at: "2025-01-04T00:00:00Z",
+            },
+          ]}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /runs/i }));
+
+    fireEvent.click(screen.getByRole("radio", { name: /customer asks for a refund/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /concise answer v1/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run selected config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.launchRun).toHaveBeenCalledWith("exp_1", {
+        test_case_id: "case_1",
+        config_id: "cfg_1",
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Refund approved.")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /thorough answer v2/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run selected configs/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.launchBatchRuns).toHaveBeenCalledWith("exp_1", {
+        test_case_id: "case_1",
+        config_ids: ["cfg_1", "cfg_2"],
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/authentication failed for provider/i)).toBeInTheDocument();
     });
   });
 });

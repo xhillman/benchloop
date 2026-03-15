@@ -961,6 +961,74 @@ select {
   gap: 20px;
 }
 
+.run-launch-layout,
+.run-select-list,
+.run-result-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.run-select-card,
+.run-output-card {
+  gap: 18px;
+}
+
+.run-helper-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.run-launch-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.run-launch-action-row .cta-link {
+  border: none;
+  cursor: pointer;
+}
+
+.run-launch-action-row .cta-link:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.run-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.run-status-pill-completed {
+  background: rgba(56, 107, 73, 0.14);
+  color: #284d34;
+}
+
+.run-status-pill-failed {
+  background: rgba(143, 63, 29, 0.12);
+  color: var(--accent-deep);
+}
+
+.run-status-pill-pending,
+.run-status-pill-running {
+  background: rgba(27, 36, 50, 0.08);
+  color: var(--ink-soft);
+}
+
+.run-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .test-case-card {
   gap: 18px;
 }

@@ -635,4 +635,225 @@ describe("api client", () => {
       }),
     );
   });
+
+  it("routes run launch requests through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "run_1",
+            experiment_id: "exp_1",
+            test_case_id: "case_1",
+            config_id: "cfg_1",
+            credential_id: "cred_1",
+            status: "completed",
+            provider: "openai",
+            model: "gpt-4.1-mini-2025-04-14",
+            workflow_mode: "single_shot",
+            config_snapshot: {
+              config_id: "cfg_1",
+              name: "Direct answer",
+              version_label: "v1",
+              description: "Fast baseline answer.",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "single_shot",
+              system_prompt_template: "You are a support assistant.",
+              rendered_system_prompt: "You are a support assistant.",
+              user_prompt_template: "Reply to this ticket: {{input}}",
+              rendered_user_prompt:
+                "Reply to this ticket: Customer asks for a refund after duplicate billing.",
+              temperature: 0.2,
+              max_output_tokens: 400,
+              top_p: 0.9,
+              context_bundle_id: null,
+              tags: ["cheap", "fast"],
+              is_baseline: true,
+            },
+            input_snapshot: {
+              test_case_id: "case_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+            },
+            context_snapshot: null,
+            output_text: "Refund approved.",
+            error_message: null,
+            usage_input_tokens: 111,
+            usage_output_tokens: 29,
+            usage_total_tokens: 140,
+            latency_ms: 245,
+            estimated_cost_usd: null,
+            started_at: "2025-01-05T00:00:00Z",
+            finished_at: "2025-01-05T00:00:01Z",
+            created_at: "2025-01-05T00:00:00Z",
+            updated_at: "2025-01-05T00:00:01Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "run_2",
+              experiment_id: "exp_1",
+              test_case_id: "case_1",
+              config_id: "cfg_1",
+              credential_id: "cred_1",
+              status: "completed",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "single_shot",
+              config_snapshot: {
+                config_id: "cfg_1",
+                name: "Direct answer",
+                version_label: "v1",
+                description: "Fast baseline answer.",
+                provider: "openai",
+                model: "gpt-4.1-mini",
+                workflow_mode: "single_shot",
+                system_prompt_template: "You are a support assistant.",
+                rendered_system_prompt: "You are a support assistant.",
+                user_prompt_template: "Reply to this ticket: {{input}}",
+                rendered_user_prompt:
+                  "Reply to this ticket: Customer asks for a refund after duplicate billing.",
+                temperature: 0.2,
+                max_output_tokens: 400,
+                top_p: 0.9,
+                context_bundle_id: null,
+                tags: ["cheap", "fast"],
+                is_baseline: true,
+              },
+              input_snapshot: {
+                test_case_id: "case_1",
+                input_text: "Customer asks for a refund after duplicate billing.",
+                expected_output_text: "Acknowledge the issue and request account details.",
+                notes: "Baseline support case.",
+                tags: ["billing", "refund"],
+              },
+              context_snapshot: null,
+              output_text: "Refund approved.",
+              error_message: null,
+              usage_input_tokens: 111,
+              usage_output_tokens: 29,
+              usage_total_tokens: 140,
+              latency_ms: 245,
+              estimated_cost_usd: null,
+              started_at: "2025-01-05T00:00:00Z",
+              finished_at: "2025-01-05T00:00:01Z",
+              created_at: "2025-01-05T00:00:00Z",
+              updated_at: "2025-01-05T00:00:01Z",
+            },
+            {
+              id: "run_3",
+              experiment_id: "exp_1",
+              test_case_id: "case_1",
+              config_id: "cfg_2",
+              credential_id: "cred_2",
+              status: "failed",
+              provider: "anthropic",
+              model: "claude-3-5-sonnet-latest",
+              workflow_mode: "single_shot",
+              config_snapshot: {
+                config_id: "cfg_2",
+                name: "Thorough answer",
+                version_label: "v2",
+                description: "Anthropic variant.",
+                provider: "anthropic",
+                model: "claude-3-5-sonnet-latest",
+                workflow_mode: "single_shot",
+                system_prompt_template: "You are a careful support assistant.",
+                rendered_system_prompt: "You are a careful support assistant.",
+                user_prompt_template: "Review this issue: {{input}}",
+                rendered_user_prompt:
+                  "Review this issue: Customer asks for a refund after duplicate billing.",
+                temperature: 0.3,
+                max_output_tokens: 500,
+                top_p: null,
+                context_bundle_id: null,
+                tags: ["thorough"],
+                is_baseline: false,
+              },
+              input_snapshot: {
+                test_case_id: "case_1",
+                input_text: "Customer asks for a refund after duplicate billing.",
+                expected_output_text: "Acknowledge the issue and request account details.",
+                notes: "Baseline support case.",
+                tags: ["billing", "refund"],
+              },
+              context_snapshot: null,
+              output_text: null,
+              error_message: "Authentication failed for provider 'anthropic'.",
+              usage_input_tokens: null,
+              usage_output_tokens: null,
+              usage_total_tokens: null,
+              latency_ms: null,
+              estimated_cost_usd: null,
+              started_at: "2025-01-05T00:01:00Z",
+              finished_at: "2025-01-05T00:01:01Z",
+              created_at: "2025-01-05T00:01:00Z",
+              updated_at: "2025-01-05T00:01:01Z",
+            },
+          ]),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const launchedRun = await client.experiments.launchRun("exp_1", {
+      test_case_id: "case_1",
+      config_id: "cfg_1",
+    });
+    const launchedBatch = await client.experiments.launchBatchRuns("exp_1", {
+      test_case_id: "case_1",
+      config_ids: ["cfg_1", "cfg_2"],
+    });
+
+    expect(launchedRun.id).toBe("run_1");
+    expect(launchedBatch).toHaveLength(2);
+    expect(launchedBatch[1]?.status).toBe("failed");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/experiments/exp_1/runs",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/experiments/exp_1/runs/batch",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        test_case_id: "case_1",
+        config_id: "cfg_1",
+      }),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({
+        test_case_id: "case_1",
+        config_ids: ["cfg_1", "cfg_2"],
+      }),
+    );
+  });
 });
