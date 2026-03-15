@@ -1,6 +1,8 @@
 from typing import cast
 
 from sqlalchemy import String, Text, UniqueConstraint
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql.schema import Table
 
 from benchloop_api.settings.models import UserProviderCredential, UserSettings
@@ -50,3 +52,13 @@ def test_user_provider_credential_model_defines_secret_and_validation_columns() 
     assert isinstance(table.c.encrypted_api_key.type, Text)
     assert table.c.validation_status.nullable is False
     assert table.c.is_active.nullable is False
+
+
+def test_user_provider_credential_model_uses_postgres_boolean_default_literal() -> None:
+    ddl = str(
+        CreateTable(cast(Table, UserProviderCredential.__table__)).compile(
+            dialect=postgresql.dialect()
+        )
+    )
+
+    assert "is_active BOOLEAN DEFAULT true NOT NULL" in ddl
