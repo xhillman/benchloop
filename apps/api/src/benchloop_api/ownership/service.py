@@ -1,9 +1,10 @@
 from typing import Generic, TypeVar
 from uuid import UUID
 
+from benchloop_api.ownership.models import UserOwnedMixin
 from benchloop_api.ownership.repository import UserOwnedRepository
 
-ModelT = TypeVar("ModelT")
+ModelT = TypeVar("ModelT", bound=UserOwnedMixin)
 
 
 class UserOwnedResourceNotFoundError(Exception):

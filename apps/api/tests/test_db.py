@@ -1,9 +1,11 @@
 from collections.abc import Generator
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.schema import Table
 
 from benchloop_api.app import create_app
 from benchloop_api.config import AppSettings
@@ -51,7 +53,7 @@ def example_record_model() -> Generator[type[Base]]:
     try:
         yield session_example_record
     finally:
-        Base.metadata.remove(session_example_record.__table__)
+        Base.metadata.remove(cast(Table, getattr(session_example_record, "__table__")))
 
 
 def test_app_initializes_database_runtime() -> None:
@@ -77,7 +79,7 @@ def test_uuid_and_timestamp_mixins_define_foundational_columns() -> None:
     assert table.c.created_at.nullable is False
     assert table.c.updated_at.nullable is False
 
-    Base.metadata.remove(ColumnExampleRecord.__table__)
+    Base.metadata.remove(cast(Table, ColumnExampleRecord.__table__))
 
 
 def test_session_scope_commits_changes(database_engine, example_record_model) -> None:

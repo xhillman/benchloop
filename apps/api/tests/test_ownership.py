@@ -1,9 +1,11 @@
 from inspect import signature
+from typing import cast
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import String, select
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.schema import Table
 
 from benchloop_api.config import AppSettings
 from benchloop_api.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -60,7 +62,7 @@ def owned_record_model():
     try:
         yield owned_record
     finally:
-        Base.metadata.remove(owned_record.__table__)
+        Base.metadata.remove(cast(Table, owned_record.__table__))
 
 
 def test_user_owned_mixin_defines_required_user_id_column() -> None:
@@ -77,7 +79,7 @@ def test_user_owned_mixin_defines_required_user_id_column() -> None:
     foreign_key = next(iter(table.c.user_id.foreign_keys))
     assert foreign_key.target_fullname == "users.id"
 
-    Base.metadata.remove(OwnedColumnExample.__table__)
+    Base.metadata.remove(cast(Table, OwnedColumnExample.__table__))
 
 
 def test_user_owned_repository_public_methods_require_explicit_user_id() -> None:

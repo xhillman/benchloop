@@ -60,12 +60,16 @@ Local commands:
   - run the Next.js app on `http://localhost:3000`
 - `make web-lint`
   - lint the web app
+- `make web-format`
+  - format the web app with Prettier
 - `make web-typecheck`
   - run TypeScript with no emit
 - `make web-test`
   - run the Vitest suite once
 - `make web-build`
   - verify the production Next.js build
+- `make web-check`
+  - run the full web quality suite used in CI
 
 Local env convention:
 

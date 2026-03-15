@@ -49,7 +49,7 @@ class ApiResponseModel(ApiContractModel):
     )
 
 
-def build_error_responses(*status_codes: int) -> dict[int, dict[str, Any]]:
+def build_error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
     return {
         status_code: {
             "description": _ERROR_RESPONSE_DESCRIPTIONS[status_code],
@@ -83,14 +83,14 @@ def install_openapi_contract(app: FastAPI) -> None:
         app.openapi_schema = openapi_schema
         return openapi_schema
 
-    app.openapi = custom_openapi
+    setattr(app, "openapi", custom_openapi)
 
 
 def documented_error_statuses(
     *,
     include_auth: bool = False,
     extra_statuses: Iterable[int] = (),
-) -> dict[int, dict[str, Any]]:
+) -> dict[int | str, dict[str, Any]]:
     status_codes = [422, 500]
     if include_auth:
         status_codes = [401, 403, *status_codes]

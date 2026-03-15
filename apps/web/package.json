@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
@@ -26,6 +27,7 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.1.6",
     "jsdom": "^26.1.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }

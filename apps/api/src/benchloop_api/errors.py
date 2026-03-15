@@ -55,7 +55,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             code=code,
             message=exc.detail if isinstance(exc.detail, str) else "Request failed.",
             details=None if isinstance(exc.detail, str) else exc.detail,
-            headers=exc.headers,
+            headers=dict(exc.headers) if exc.headers is not None else None,
         )
 
     @app.exception_handler(RequestValidationError)

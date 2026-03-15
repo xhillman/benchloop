@@ -20,8 +20,9 @@ class UserOwnedRepository(Generic[ModelT]):
         return self._session.scalars(statement).all()
 
     def get_owned(self, *, user_id: UUID, resource_id: UUID) -> ModelT | None:
+        id_column = getattr(self._model_type, "id")
         statement = self._owned_statement(user_id=user_id).where(
-            self._model_type.id == resource_id,
+            id_column == resource_id,
         )
         return self._session.scalar(statement)
 
@@ -38,4 +39,5 @@ class UserOwnedRepository(Generic[ModelT]):
         return True
 
     def _owned_statement(self, *, user_id: UUID):
-        return select(self._model_type).where(self._model_type.user_id == user_id)
+        user_id_column = getattr(self._model_type, "user_id")
+        return select(self._model_type).where(user_id_column == user_id)

@@ -1,10 +1,13 @@
-from sqlalchemy import String, Text
+from typing import cast
+
+from sqlalchemy import String, Text, UniqueConstraint
+from sqlalchemy.sql.schema import Table
 
 from benchloop_api.settings.models import UserProviderCredential, UserSettings
 
 
 def test_user_settings_model_defines_one_row_per_user_defaults() -> None:
-    table = UserSettings.__table__
+    table = cast(Table, UserSettings.__table__)
 
     assert set(table.c.keys()) == {
         "id",
@@ -20,12 +23,14 @@ def test_user_settings_model_defines_one_row_per_user_defaults() -> None:
     assert isinstance(table.c.default_model.type, String)
     assert isinstance(table.c.timezone.type, String)
     assert any(
-        constraint.columns.keys() == ["user_id"] for constraint in table.constraints
+        constraint.columns.keys() == ["user_id"]
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
     )
 
 
 def test_user_provider_credential_model_defines_secret_and_validation_columns() -> None:
-    table = UserProviderCredential.__table__
+    table = cast(Table, UserProviderCredential.__table__)
 
     assert set(table.c.keys()) == {
         "id",

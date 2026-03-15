@@ -1,8 +1,10 @@
 import json
 import time
+from typing import cast
 
 import httpx
 import jwt
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 
 from benchloop_api.auth.models import AuthenticatedPrincipal
 from benchloop_api.config import AppSettings
@@ -42,7 +44,10 @@ class ClerkJwtVerifier:
 
         jwk = await self._get_signing_jwk(key_id)
         try:
-            signing_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
+            signing_key = cast(
+                RSAPublicKey,
+                jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk)),
+            )
             payload = jwt.decode(
                 token,
                 signing_key,

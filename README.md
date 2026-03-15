@@ -1,51 +1,89 @@
 # Benchloop
 
-Benchloop is a personal AI experimentation workbench with `FastAPI` as the product core and `Next.js` as the first client.
+Benchloop is a personal AI experimentation workbench with `FastAPI` as the product core, `Next.js` as the first client, and Postgres as the system of record.
 
 ## Repository Layout
 
 - `apps/api`
-  - backend application, data layer, migrations, and tests
+  - FastAPI application package, database layer, Alembic migrations, and backend tests
 - `apps/web`
-  - frontend application and UI tests
-- `dev`
-  - product docs, contracts, and planning artifacts
+  - Next.js client, UI components, and frontend tests
 - `scripts`
-  - top-level repository scripts and helper utilities
+  - repo-level helper scripts
+- `dev`
+  - internal product docs, contracts, and backlog notes
 
-## Local Foundation Startup
+## Prerequisites
 
-B002 establishes the local infrastructure and environment conventions that later backlog items build on.
-
-Prerequisites:
-
+- Python `3.12`
+- [`uv`](https://docs.astral.sh/uv/)
+- Node.js `22` with `npm`
 - Docker with Compose support
-- `uv`
-- Node.js with `npm`
 
-Startup path:
+## Local Setup
 
-1. Run `make local-up`.
-2. Run `make api-sync` to create the pinned Python 3.12 API environment from `apps/api/uv.lock`.
-3. Run `make web-install` to install the committed Next.js dependencies for `apps/web`.
-4. Run `make api-dev` to boot the FastAPI runtime with the FastAPI CLI.
-5. Run `make web-dev` in a second terminal to boot the Next.js product shell on `http://localhost:3000`.
-6. Review the generated env files and replace placeholder secrets before wiring real app runtimes:
-   - `/.env`
-   - `/apps/api/.env`
-   - `/apps/web/.env.local`
-7. When you are done, run `make postgres-down`.
+1. Run `make local-up` to create missing env files and start the local Postgres container.
+2. Run `make api-sync` to install the locked API environment from [`apps/api/uv.lock`](/Users/xavierhillman/blackbox/code/benchloop/apps/api/uv.lock).
+3. Run `make web-install` to install the locked web dependencies from [`apps/web/package-lock.json`](/Users/xavierhillman/blackbox/code/benchloop/apps/web/package-lock.json).
+4. Review the generated env files and replace placeholder secrets before using authenticated or credential-backed flows:
+   - [`.env`](/Users/xavierhillman/blackbox/code/benchloop/.env)
+   - [`apps/api/.env`](/Users/xavierhillman/blackbox/code/benchloop/apps/api/.env)
+   - [`apps/web/.env.local`](/Users/xavierhillman/blackbox/code/benchloop/apps/web/.env.local)
+5. Run `make api-migrate` if you need the local Postgres database brought to the latest Alembic revision.
+6. Start the API with `make api-dev` and the web app with `make web-dev`.
 
-What `make local-up` does:
+Local default URLs:
 
-- creates missing local env files from committed examples without overwriting existing values
-- starts a local Postgres 16 container on `localhost:5432`
+- API: `http://localhost:8000`
+- API docs: `http://localhost:8000/docs`
+- Web app: `http://localhost:3000`
 
-Current status:
+When you are done, stop the local database with `make postgres-down`.
 
-- local Postgres bootstrapping is ready now
-- FastAPI runtime scaffolding is ready through `B003`
-- SQLAlchemy base wiring and Alembic scaffolding are ready through `B004`
-- FastAPI Clerk bearer-token verification is ready through `B008`
-- the API uses a `uv`-managed, locked Python environment under `apps/api`
-- the Next.js product shell, route groups, and frontend checks are ready through `B006`
+## Environment Files
+
+- [`.env.example`](/Users/xavierhillman/blackbox/code/benchloop/.env.example)
+  - docker-compose defaults for the local Postgres container
+- [`apps/api/.env.example`](/Users/xavierhillman/blackbox/code/benchloop/apps/api/.env.example)
+  - FastAPI runtime settings, database URL, encryption key, CORS, and Clerk verification placeholders
+- [`apps/web/.env.example`](/Users/xavierhillman/blackbox/code/benchloop/apps/web/.env.example)
+  - Next.js app URL, API base URL, and Clerk web placeholders
+
+Replace placeholders before using real Clerk sessions or provider credentials. `BENCHLOOP_ENCRYPTION_KEY` must be set to a long random secret for any environment that stores credentials.
+
+## Common Commands
+
+- `make format`
+  - format both apps
+- `make lint`
+  - run Ruff for the API and ESLint for the web app
+- `make typecheck`
+  - run `mypy` for the API and `tsc --noEmit` for the web app
+- `make test`
+  - run the backend and frontend automated test suites
+- `make migrations-check`
+  - validate that Alembic upgrades cleanly and that autogeneration is in sync
+- `make check`
+  - run the full repo quality suite used by CI
+
+App-specific targets are listed in [`Makefile`](/Users/xavierhillman/blackbox/code/benchloop/Makefile) and surfaced through `make help`.
+
+## Migrations
+
+- `make api-migrate`
+  - apply Alembic migrations to the configured database
+- `make api-revision MESSAGE="describe change"`
+  - generate a new Alembic revision from the current SQLAlchemy metadata
+- `make api-migrations-check`
+  - run the migration validation tests directly
+
+## CI
+
+GitHub Actions runs the same repo-level gates defined in the Makefile:
+
+- lint
+- typecheck
+- tests
+- migrations validation
+
+The workflow lives at [`.github/workflows/ci.yml`](/Users/xavierhillman/blackbox/code/benchloop/.github/workflows/ci.yml).

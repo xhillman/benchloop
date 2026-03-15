@@ -159,12 +159,22 @@ Local commands:
   - sync the locked `uv` environment for the API package
 - `make api-dev`
   - run the FastAPI app with the FastAPI CLI on `http://localhost:8000`
+- `make api-lint`
+  - run Ruff against the backend source and tests
+- `make api-format`
+  - format the backend source and tests with Ruff
+- `make api-typecheck`
+  - run `mypy` against the backend source and tests
 - `make api-test`
   - run the backend test suite inside the locked `uv` environment
 - `make api-migrate`
   - apply migrations to the configured database
+- `make api-migrations-check`
+  - validate that Alembic upgrades to head and autogenerate state stays clean
 - `make api-revision MESSAGE="describe change"`
   - generate a new migration revision against the shared SQLAlchemy metadata
+- `make api-check`
+  - run the full backend quality suite used in CI
 
 Python version:
 
