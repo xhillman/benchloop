@@ -1,24 +1,53 @@
-import { EmptyState } from "@/components/states/empty-state";
+import { RunsWorkspace } from "@/components/runs/runs-workspace";
+import { ErrorState } from "@/components/states/error-state";
+import {
+  ApiClientError,
+  type ExperimentResponse,
+  type RunHistoryResponse,
+} from "@/lib/api/client";
+import { getApiClient } from "@/lib/api/server";
 
-export default function RunsPage() {
+export default async function RunsPage() {
+  let bootstrapError: string | null = null;
+  let experiments: ExperimentResponse[] = [];
+  let runs: RunHistoryResponse[] = [];
+
+  try {
+    const apiClient = await getApiClient();
+    [runs, experiments] = await Promise.all([
+      apiClient.runs.list(),
+      apiClient.experiments.list({ includeArchived: true }),
+    ]);
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      bootstrapError = `${error.message} (${error.status})`;
+    } else {
+      throw error;
+    }
+  }
+
   return (
     <>
       <section className="shell-panel page-header">
         <p className="eyebrow">Runs</p>
-        <h1>Inspect output, latency, and reproducibility from one lane.</h1>
+        <h1>Keep the execution record sortable, filterable, and reproducible.</h1>
         <p>
-          Execution and rerun features land later. This route group keeps a dedicated area ready
-          for compare-heavy workflows without restructuring the shell.
+          This index is the first durable history surface for completed and failed runs. Use it to
+          slice by experiment, provider, model, config, tag, and date before the source-of-truth
+          detail page lands.
         </p>
       </section>
 
-      <section className="state-card">
-        <EmptyState
-          label="Runs"
-          title="No run history exists yet"
-          description="Run snapshots, provider responses, and rerun actions will attach to this section once the execution contracts are implemented."
-        />
-      </section>
+      {bootstrapError ? (
+        <section className="state-card">
+          <ErrorState
+            message={bootstrapError}
+            title="The runs index could not load"
+          />
+        </section>
+      ) : (
+        <RunsWorkspace initialExperiments={experiments} initialRuns={runs} />
+      )}
     </>
   );
 }

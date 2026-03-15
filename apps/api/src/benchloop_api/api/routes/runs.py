@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -25,12 +25,19 @@ from benchloop_api.execution.service import (
 )
 from benchloop_api.execution.snapshots import ConfigSnapshot, ContextSnapshot, InputSnapshot
 from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
+from benchloop_api.runs.service import RunHistoryFilters, RunHistoryService
 from benchloop_api.settings.encryption import EncryptionService, get_encryption_service
 
 router = APIRouter(
     prefix="/experiments/{experiment_id}/runs",
     tags=["runs"],
     responses=documented_error_statuses(include_auth=True, extra_statuses=(404, 409)),
+)
+
+history_router = APIRouter(
+    prefix="/runs",
+    tags=["runs"],
+    responses=documented_error_statuses(include_auth=True),
 )
 
 
@@ -48,6 +55,12 @@ def get_run_launch_service(
         session=session,
         execution_service=execution_service,
     )
+
+
+def get_run_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> RunHistoryService:
+    return RunHistoryService(session)
 
 
 class RunResponse(ApiResponseModel):
@@ -74,6 +87,27 @@ class RunResponse(ApiResponseModel):
     finished_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class RunHistoryResponse(ApiResponseModel):
+    id: UUID
+    experiment_id: UUID
+    experiment_name: str | None = None
+    test_case_id: UUID
+    config_id: UUID
+    config_name: str
+    config_version_label: str
+    test_case_input_preview: str
+    status: str
+    provider: str
+    model: str
+    workflow_mode: str
+    tags: list[str] = Field(default_factory=list)
+    latency_ms: int | None = None
+    estimated_cost_usd: float | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 class LaunchRunRequest(ApiRequestModel):
@@ -138,6 +172,57 @@ def _conflict(detail: str) -> HTTPException:
         status_code=status.HTTP_409_CONFLICT,
         detail=detail,
     )
+
+
+def _normalize_query_values(values: list[str]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for raw_value in values:
+        value = raw_value.strip().lower()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+
+    return tuple(normalized)
+
+
+def _to_history_response(run) -> RunHistoryResponse:
+    return RunHistoryResponse.model_validate(run)
+
+
+@history_router.get("", response_model=list[RunHistoryResponse])
+async def list_runs(
+    current_user: CurrentUser,
+    run_history_service: Annotated[RunHistoryService, Depends(get_run_history_service)],
+    experiment_id: list[UUID] = Query(default_factory=list),
+    config_id: list[UUID] = Query(default_factory=list),
+    provider: list[str] = Query(default_factory=list),
+    model: list[str] = Query(default_factory=list),
+    status_filter: list[str] = Query(default_factory=list, alias="status"),
+    tag: list[str] = Query(default_factory=list),
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    sort_by: Literal["created_at", "estimated_cost_usd", "finished_at", "latency_ms"] = "created_at",
+    sort_order: Literal["asc", "desc"] = "desc",
+) -> list[RunHistoryResponse]:
+    runs = run_history_service.list(
+        user_id=current_user.id,
+        filters=RunHistoryFilters(
+            experiment_ids=tuple(experiment_id),
+            config_ids=tuple(config_id),
+            providers=_normalize_query_values(provider),
+            models=_normalize_query_values(model),
+            statuses=_normalize_query_values(status_filter),
+            tags=_normalize_query_values(tag),
+            created_from=created_from,
+            created_to=created_to,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        ),
+    )
+    return [_to_history_response(run) for run in runs]
 
 
 @router.post(

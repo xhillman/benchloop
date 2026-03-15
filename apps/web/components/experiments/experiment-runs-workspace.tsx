@@ -255,6 +255,7 @@ export function ExperimentRunsWorkspace({
           {testCases.length === 0 ? (
             <EmptyState
               description="Create at least one test case before trying to launch a run."
+              label="Test cases"
               title="No test cases ready"
             />
           ) : (
@@ -301,6 +302,7 @@ export function ExperimentRunsWorkspace({
           {launchableConfigs.length === 0 ? (
             <EmptyState
               description="Create a single-shot config before trying to launch a run."
+              label="Configs"
               title="No launchable configs ready"
             />
           ) : (

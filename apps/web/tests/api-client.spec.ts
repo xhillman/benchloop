@@ -319,6 +319,66 @@ describe("api client", () => {
     );
   });
 
+  it("routes run history filters through the shared client", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([
+          {
+            id: "run_1",
+            experiment_id: "exp_1",
+            experiment_name: "Support triage",
+            test_case_id: "case_1",
+            config_id: "cfg_1",
+            config_name: "Refund baseline",
+            config_version_label: "v1",
+            test_case_input_preview: "Refund the duplicate charge.",
+            status: "completed",
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            workflow_mode: "single_shot",
+            tags: ["priority", "refund"],
+            latency_ms: 240,
+            estimated_cost_usd: 0.0014,
+            created_at: "2025-01-10T15:00:00Z",
+            started_at: "2025-01-10T15:00:00Z",
+            finished_at: "2025-01-10T15:00:02Z",
+          },
+        ]),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+    );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const runs = await client.runs.list({
+      experimentIds: ["exp_1"],
+      configIds: ["cfg_1"],
+      providers: ["OpenAI"],
+      models: ["gpt-4.1-mini"],
+      statuses: ["Completed"],
+      tags: ["Priority"],
+      createdFrom: "2025-01-09T00:00:00Z",
+      createdTo: "2025-01-10T23:59:59Z",
+      sortBy: "latency_ms",
+      sortOrder: "asc",
+    });
+
+    expect(runs).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/runs?experiment_id=exp_1&config_id=cfg_1&provider=openai&model=gpt-4.1-mini&status=completed&tag=priority&created_from=2025-01-09T00%3A00%3A00Z&created_to=2025-01-10T23%3A59%3A59Z&sort_by=latency_ms&sort_order=asc",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+  });
+
   it("routes test case CRUD and duplication through the shared client", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

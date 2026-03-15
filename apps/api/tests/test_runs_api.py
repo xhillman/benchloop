@@ -217,6 +217,303 @@ def seed_run_launch_records(
     }
 
 
+def build_config_snapshot(config: Config, *, rendered_user_prompt: str) -> dict[str, object]:
+    return {
+        "config_id": str(config.id),
+        "name": config.name,
+        "version_label": config.version_label,
+        "description": config.description,
+        "provider": config.provider,
+        "model": config.model,
+        "workflow_mode": config.workflow_mode,
+        "system_prompt_template": config.system_prompt,
+        "rendered_system_prompt": config.system_prompt,
+        "user_prompt_template": config.user_prompt_template,
+        "rendered_user_prompt": rendered_user_prompt,
+        "temperature": config.temperature,
+        "max_output_tokens": config.max_output_tokens,
+        "top_p": config.top_p,
+        "context_bundle_id": str(config.context_bundle_id) if config.context_bundle_id else None,
+        "tags": list(config.tags),
+        "is_baseline": config.is_baseline,
+    }
+
+
+def build_input_snapshot(test_case: BenchloopTestCase) -> dict[str, object]:
+    return {
+        "test_case_id": str(test_case.id),
+        "input_text": test_case.input_text,
+        "expected_output_text": test_case.expected_output_text,
+        "notes": test_case.notes,
+        "tags": list(test_case.tags),
+    }
+
+
+def seed_run_history_records(session) -> dict[str, object]:
+    owner = User(clerk_user_id="user_123")
+    other_user = User(clerk_user_id="user_456")
+    session.add_all([owner, other_user])
+    session.flush()
+
+    billing_experiment = Experiment(
+        user_id=owner.id,
+        name="Billing support lab",
+        description="Support response comparisons.",
+        tags=["support"],
+        is_archived=False,
+    )
+    outbound_experiment = Experiment(
+        user_id=owner.id,
+        name="Outbound follow-up",
+        description="Sales outreach variants.",
+        tags=["sales"],
+        is_archived=False,
+    )
+    other_experiment = Experiment(
+        user_id=other_user.id,
+        name="Other user's lab",
+        description=None,
+        tags=["other"],
+        is_archived=False,
+    )
+    session.add_all([billing_experiment, outbound_experiment, other_experiment])
+    session.flush()
+
+    billing_case = BenchloopTestCase(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        input_text="Refund the duplicate charge and confirm the timeline.",
+        expected_output_text="Acknowledge the refund process.",
+        notes="Priority refund case.",
+        tags=["priority", "refund"],
+    )
+    escalation_case = BenchloopTestCase(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        input_text="Escalate the account lockout issue.",
+        expected_output_text=None,
+        notes="Security handoff.",
+        tags=["priority", "security"],
+    )
+    outbound_case = BenchloopTestCase(
+        user_id=owner.id,
+        experiment_id=outbound_experiment.id,
+        input_text="Write a warm follow-up after a demo.",
+        expected_output_text="Friendly follow-up email.",
+        notes=None,
+        tags=["outbound"],
+    )
+    other_case = BenchloopTestCase(
+        user_id=other_user.id,
+        experiment_id=other_experiment.id,
+        input_text="Other user test case.",
+        expected_output_text=None,
+        notes=None,
+        tags=["other"],
+    )
+    session.add_all([billing_case, escalation_case, outbound_case, other_case])
+    session.flush()
+
+    refund_config = Config(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        name="Refund baseline",
+        version_label="v1",
+        description="Quick refund response.",
+        provider="openai",
+        model="gpt-4.1-mini",
+        workflow_mode="single_shot",
+        system_prompt="You are a billing assistant.",
+        user_prompt_template="Respond to: {{input}}",
+        temperature=0.2,
+        max_output_tokens=256,
+        top_p=0.9,
+        context_bundle_id=None,
+        tags=["priority", "baseline"],
+        is_baseline=True,
+    )
+    escalation_config = Config(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        name="Escalation variant",
+        version_label="v2",
+        description="Route the issue carefully.",
+        provider="openai",
+        model="gpt-4.1-nano",
+        workflow_mode="single_shot",
+        system_prompt="You are a security assistant.",
+        user_prompt_template="Handle escalation: {{input}}",
+        temperature=0.1,
+        max_output_tokens=180,
+        top_p=None,
+        context_bundle_id=None,
+        tags=["priority", "analysis"],
+        is_baseline=False,
+    )
+    outbound_config = Config(
+        user_id=owner.id,
+        experiment_id=outbound_experiment.id,
+        name="Sales follow-up",
+        version_label="v3",
+        description="Warm outbound draft.",
+        provider="anthropic",
+        model="claude-3-5-sonnet",
+        workflow_mode="single_shot",
+        system_prompt="You are a concise sales assistant.",
+        user_prompt_template="Follow up on: {{input}}",
+        temperature=0.5,
+        max_output_tokens=300,
+        top_p=0.95,
+        context_bundle_id=None,
+        tags=["outbound"],
+        is_baseline=False,
+    )
+    other_config = Config(
+        user_id=other_user.id,
+        experiment_id=other_experiment.id,
+        name="Other config",
+        version_label="v1",
+        description=None,
+        provider="openai",
+        model="gpt-4.1-mini",
+        workflow_mode="single_shot",
+        system_prompt=None,
+        user_prompt_template="Other: {{input}}",
+        temperature=0.2,
+        max_output_tokens=128,
+        top_p=None,
+        context_bundle_id=None,
+        tags=["other"],
+        is_baseline=False,
+    )
+    session.add_all([refund_config, escalation_config, outbound_config, other_config])
+    session.flush()
+
+    run_one = Run(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        test_case_id=billing_case.id,
+        config_id=refund_config.id,
+        credential_id=None,
+        status="completed",
+        provider="openai",
+        model="gpt-4.1-mini-2025-04-14",
+        workflow_mode="single_shot",
+        config_snapshot_json=build_config_snapshot(
+            refund_config,
+            rendered_user_prompt="Respond to: Refund the duplicate charge and confirm the timeline.",
+        ),
+        input_snapshot_json=build_input_snapshot(billing_case),
+        context_snapshot_json=None,
+        output_text="Refund approved and timeline confirmed.",
+        error_message=None,
+        usage_input_tokens=120,
+        usage_output_tokens=24,
+        usage_total_tokens=144,
+        latency_ms=240,
+        estimated_cost_usd=0.0014,
+        created_at=datetime(2025, 1, 10, 15, 0, tzinfo=UTC),
+        updated_at=datetime(2025, 1, 10, 15, 1, tzinfo=UTC),
+        started_at=datetime(2025, 1, 10, 15, 0, tzinfo=UTC),
+        finished_at=datetime(2025, 1, 10, 15, 0, 2, tzinfo=UTC),
+    )
+    run_two = Run(
+        user_id=owner.id,
+        experiment_id=billing_experiment.id,
+        test_case_id=escalation_case.id,
+        config_id=escalation_config.id,
+        credential_id=None,
+        status="completed",
+        provider="openai",
+        model="gpt-4.1-nano-2025-04-14",
+        workflow_mode="single_shot",
+        config_snapshot_json=build_config_snapshot(
+            escalation_config,
+            rendered_user_prompt="Handle escalation: Escalate the account lockout issue.",
+        ),
+        input_snapshot_json=build_input_snapshot(escalation_case),
+        context_snapshot_json=None,
+        output_text="Escalated to security with the required context.",
+        error_message=None,
+        usage_input_tokens=98,
+        usage_output_tokens=20,
+        usage_total_tokens=118,
+        latency_ms=120,
+        estimated_cost_usd=0.0008,
+        created_at=datetime(2025, 1, 11, 9, 0, tzinfo=UTC),
+        updated_at=datetime(2025, 1, 11, 9, 1, tzinfo=UTC),
+        started_at=datetime(2025, 1, 11, 9, 0, tzinfo=UTC),
+        finished_at=datetime(2025, 1, 11, 9, 0, 1, tzinfo=UTC),
+    )
+    run_three = Run(
+        user_id=owner.id,
+        experiment_id=outbound_experiment.id,
+        test_case_id=outbound_case.id,
+        config_id=outbound_config.id,
+        credential_id=None,
+        status="failed",
+        provider="anthropic",
+        model="claude-3-5-sonnet-20241022",
+        workflow_mode="single_shot",
+        config_snapshot_json=build_config_snapshot(
+            outbound_config,
+            rendered_user_prompt="Follow up on: Write a warm follow-up after a demo.",
+        ),
+        input_snapshot_json=build_input_snapshot(outbound_case),
+        context_snapshot_json=None,
+        output_text=None,
+        error_message="Provider timed out.",
+        usage_input_tokens=None,
+        usage_output_tokens=None,
+        usage_total_tokens=None,
+        latency_ms=None,
+        estimated_cost_usd=None,
+        created_at=datetime(2025, 1, 12, 8, 30, tzinfo=UTC),
+        updated_at=datetime(2025, 1, 12, 8, 31, tzinfo=UTC),
+        started_at=datetime(2025, 1, 12, 8, 30, tzinfo=UTC),
+        finished_at=datetime(2025, 1, 12, 8, 30, 5, tzinfo=UTC),
+    )
+    other_run = Run(
+        user_id=other_user.id,
+        experiment_id=other_experiment.id,
+        test_case_id=other_case.id,
+        config_id=other_config.id,
+        credential_id=None,
+        status="completed",
+        provider="openai",
+        model="gpt-4.1-mini-2025-04-14",
+        workflow_mode="single_shot",
+        config_snapshot_json=build_config_snapshot(
+            other_config,
+            rendered_user_prompt="Other: Other user test case.",
+        ),
+        input_snapshot_json=build_input_snapshot(other_case),
+        context_snapshot_json=None,
+        output_text="Other user's output.",
+        error_message=None,
+        usage_input_tokens=10,
+        usage_output_tokens=5,
+        usage_total_tokens=15,
+        latency_ms=80,
+        estimated_cost_usd=0.0002,
+        created_at=datetime(2025, 1, 13, 10, 0, tzinfo=UTC),
+        updated_at=datetime(2025, 1, 13, 10, 1, tzinfo=UTC),
+        started_at=datetime(2025, 1, 13, 10, 0, tzinfo=UTC),
+        finished_at=datetime(2025, 1, 13, 10, 0, 1, tzinfo=UTC),
+    )
+    session.add_all([run_one, run_two, run_three, other_run])
+    session.commit()
+
+    return {
+        "owner": owner,
+        "billing_experiment": billing_experiment,
+        "outbound_experiment": outbound_experiment,
+        "refund_config": refund_config,
+        "escalation_config": escalation_config,
+        "runs": [run_one, run_two, run_three],
+    }
+
+
 def test_run_launch_endpoints_require_authentication() -> None:
     app = create_app()
 
@@ -229,6 +526,22 @@ def test_run_launch_endpoints_require_authentication() -> None:
             "config_id": "33333333-3333-3333-3333-333333333333",
         },
     )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
+def test_run_history_endpoint_requires_authentication() -> None:
+    app = create_app()
+
+    response = request(app, "GET", "/api/v1/runs")
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
@@ -393,6 +706,81 @@ def test_launch_multiple_runs_returns_one_run_per_selected_config(
     assert len(persisted_runs) == 2
     assert len(openai_adapter.calls) == 1
     assert len(anthropic_adapter.calls) == 1
+
+
+def test_run_history_lists_only_owned_runs_with_experiment_context(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "GET",
+        "/api/v1/runs",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [run["id"] for run in payload] == [str(run.id) for run in reversed(records["runs"])]
+    assert [run["experiment_name"] for run in payload] == [
+        "Outbound follow-up",
+        "Billing support lab",
+        "Billing support lab",
+    ]
+    assert payload[0]["status"] == "failed"
+    assert payload[0]["config_name"] == "Sales follow-up"
+    assert payload[1]["test_case_input_preview"] == "Escalate the account lockout issue."
+    assert payload[2]["provider"] == "openai"
+    assert all(run["experiment_name"] != "Other user's lab" for run in payload)
+
+
+def test_run_history_supports_filters_and_sorting(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    filtered_response = request(
+        app,
+        "GET",
+        (
+            f"/api/v1/runs?experiment_id={records['billing_experiment'].id}"
+            f"&provider=openai&config_id={records['refund_config'].id}"
+            "&tag=priority&created_from=2025-01-09T00:00:00Z&created_to=2025-01-10T23:59:59Z"
+        ),
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert filtered_response.status_code == 200
+    filtered_payload = filtered_response.json()
+    assert [run["config_name"] for run in filtered_payload] == ["Refund baseline"]
+    assert [run["status"] for run in filtered_payload] == ["completed"]
+
+    sorted_response = request(
+        app,
+        "GET",
+        (
+            f"/api/v1/runs?experiment_id={records['billing_experiment'].id}"
+            "&provider=openai&tag=priority&sort_by=latency_ms&sort_order=asc"
+        ),
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert sorted_response.status_code == 200
+    sorted_payload = sorted_response.json()
+    assert [run["config_name"] for run in sorted_payload] == [
+        "Escalation variant",
+        "Refund baseline",
+    ]
+    assert [run["latency_ms"] for run in sorted_payload] == [120, 240]
 
 
 def test_launch_routes_reject_non_single_shot_configs(

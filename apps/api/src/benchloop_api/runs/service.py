@@ -1,4 +1,7 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -6,6 +9,7 @@ from sqlalchemy.orm import Session
 from benchloop_api.configs.models import Config
 from benchloop_api.execution.adapters import ProviderExecutionResult
 from benchloop_api.execution.snapshots import RunSnapshotBundle
+from benchloop_api.experiments.repository import ExperimentRepository
 from benchloop_api.runs.models import Run
 from benchloop_api.runs.repository import RunRepository
 from benchloop_api.test_cases.models import TestCase
@@ -14,6 +18,45 @@ RUN_STATUS_PENDING = "pending"
 RUN_STATUS_RUNNING = "running"
 RUN_STATUS_COMPLETED = "completed"
 RUN_STATUS_FAILED = "failed"
+
+RunHistorySortField = Literal["created_at", "estimated_cost_usd", "finished_at", "latency_ms"]
+RunHistorySortOrder = Literal["asc", "desc"]
+
+
+@dataclass(frozen=True)
+class RunHistoryFilters:
+    experiment_ids: tuple[UUID, ...] = ()
+    config_ids: tuple[UUID, ...] = ()
+    providers: tuple[str, ...] = ()
+    models: tuple[str, ...] = ()
+    statuses: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+    sort_by: RunHistorySortField = "created_at"
+    sort_order: RunHistorySortOrder = "desc"
+
+
+@dataclass(frozen=True)
+class RunHistoryEntry:
+    id: UUID
+    experiment_id: UUID
+    experiment_name: str | None
+    test_case_id: UUID
+    config_id: UUID
+    config_name: str
+    config_version_label: str
+    test_case_input_preview: str
+    status: str
+    provider: str
+    model: str
+    workflow_mode: str
+    tags: list[str]
+    latency_ms: int | None
+    estimated_cost_usd: float | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
 
 
 class RunService:
@@ -92,3 +135,147 @@ class RunService:
         run.finished_at = datetime.now(tz=UTC)
         self._session.flush()
         return run
+
+
+class RunHistoryService:
+    def __init__(self, session: Session) -> None:
+        self._repository = RunRepository(session)
+        self._experiment_repository = ExperimentRepository(session)
+
+    def list(
+        self,
+        *,
+        user_id: UUID,
+        filters: RunHistoryFilters,
+    ) -> Sequence[RunHistoryEntry]:
+        runs = self._repository.list_for_user(user_id=user_id)
+        filtered_runs = [run for run in runs if self._matches_filters(run=run, filters=filters)]
+        sorted_runs = self._sort_runs(runs=filtered_runs, filters=filters)
+        experiment_names = {
+            experiment.id: experiment.name
+            for experiment in self._experiment_repository.list_for_user(
+                user_id=user_id,
+                include_archived=True,
+            )
+        }
+        return [
+            self._to_history_entry(run=run, experiment_name=experiment_names.get(run.experiment_id))
+            for run in sorted_runs
+        ]
+
+    def _matches_filters(self, *, run: Run, filters: RunHistoryFilters) -> bool:
+        created_at = _coerce_utc_datetime(run.created_at)
+        if filters.experiment_ids and run.experiment_id not in filters.experiment_ids:
+            return False
+        if filters.config_ids and run.config_id not in filters.config_ids:
+            return False
+        if filters.providers and run.provider.lower() not in filters.providers:
+            return False
+        if filters.models and run.model.lower() not in filters.models:
+            return False
+        if filters.statuses and run.status.lower() not in filters.statuses:
+            return False
+        if filters.created_from is not None and created_at < _coerce_utc_datetime(filters.created_from):
+            return False
+        if filters.created_to is not None and created_at > _coerce_utc_datetime(filters.created_to):
+            return False
+        if filters.tags and not self._matches_tags(run=run, tags=filters.tags):
+            return False
+        return True
+
+    @staticmethod
+    def _matches_tags(*, run: Run, tags: Sequence[str]) -> bool:
+        snapshot_tags = {
+            tag.strip().lower()
+            for tag in [
+                *run.config_snapshot_json.get("tags", []),
+                *run.input_snapshot_json.get("tags", []),
+            ]
+            if isinstance(tag, str) and tag.strip()
+        }
+        return any(tag in snapshot_tags for tag in tags)
+
+    def _sort_runs(self, *, runs: Sequence[Run], filters: RunHistoryFilters) -> Sequence[Run]:
+        sort_key_getter = self._get_sort_value
+        non_null_runs = [
+            run for run in runs if sort_key_getter(run=run, sort_by=filters.sort_by) is not None
+        ]
+        null_runs = [run for run in runs if sort_key_getter(run=run, sort_by=filters.sort_by) is None]
+
+        non_null_runs.sort(
+            key=lambda run: (
+                sort_key_getter(run=run, sort_by=filters.sort_by),
+                str(run.id),
+            ),
+            reverse=filters.sort_order == "desc",
+        )
+        return [*non_null_runs, *null_runs]
+
+    @staticmethod
+    def _get_sort_value(*, run: Run, sort_by: RunHistorySortField):
+        if sort_by == "latency_ms":
+            return run.latency_ms
+        if sort_by == "finished_at":
+            return _coerce_utc_datetime(run.finished_at) if run.finished_at is not None else None
+        if sort_by == "estimated_cost_usd":
+            return run.estimated_cost_usd
+        return _coerce_utc_datetime(run.created_at)
+
+    @staticmethod
+    def _to_history_entry(*, run: Run, experiment_name: str | None) -> RunHistoryEntry:
+        return RunHistoryEntry(
+            id=run.id,
+            experiment_id=run.experiment_id,
+            experiment_name=experiment_name,
+            test_case_id=run.test_case_id,
+            config_id=run.config_id,
+            config_name=str(run.config_snapshot_json.get("name", "Unknown config")),
+            config_version_label=str(run.config_snapshot_json.get("version_label", "")),
+            test_case_input_preview=_build_input_preview(
+                str(run.input_snapshot_json.get("input_text", "")),
+            ),
+            status=run.status,
+            provider=run.provider,
+            model=run.model,
+            workflow_mode=run.workflow_mode,
+            tags=_merge_snapshot_tags(run=run),
+            latency_ms=run.latency_ms,
+            estimated_cost_usd=run.estimated_cost_usd,
+            created_at=run.created_at,
+            started_at=run.started_at,
+            finished_at=run.finished_at,
+        )
+
+
+def _merge_snapshot_tags(*, run: Run) -> list[str]:
+    merged_tags: list[str] = []
+    seen: set[str] = set()
+
+    for raw_tag in [
+        *run.config_snapshot_json.get("tags", []),
+        *run.input_snapshot_json.get("tags", []),
+    ]:
+        if not isinstance(raw_tag, str):
+            continue
+
+        tag = raw_tag.strip().lower()
+        if not tag or tag in seen:
+            continue
+
+        seen.add(tag)
+        merged_tags.append(tag)
+
+    return merged_tags
+
+
+def _build_input_preview(value: str) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= 80:
+        return compact
+    return f"{compact[:77]}..."
+
+
+def _coerce_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

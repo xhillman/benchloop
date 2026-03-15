@@ -141,10 +141,24 @@ describe("shell routes", () => {
     expect(screen.getByText("user_123")).toBeInTheDocument();
   });
 
-  it("renders the remaining placeholder shell route", () => {
-    render(<RunsPage />);
+  it("renders the runs page shell with API bootstrap data", async () => {
+    getApiClientMock.mockResolvedValue({
+      runs: {
+        list: vi.fn(async () => []),
+      },
+      experiments: {
+        list: vi.fn(async () => []),
+      },
+    });
 
-    expect(screen.getByRole("heading", { level: 1, name: /inspect output, latency, and reproducibility from one lane/i })).toBeInTheDocument();
+    render(<AppShellProvider>{await RunsPage()}</AppShellProvider>);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /keep the execution record sortable, filterable, and reproducible/i,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("renders the settings page shell with API-backed defaults", async () => {

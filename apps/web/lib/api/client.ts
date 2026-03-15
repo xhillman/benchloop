@@ -150,6 +150,27 @@ export type RunResponse = {
   updated_at: string;
 };
 
+export type RunHistoryResponse = {
+  id: string;
+  experiment_id: string;
+  experiment_name: string | null;
+  test_case_id: string;
+  config_id: string;
+  config_name: string;
+  config_version_label: string;
+  test_case_input_preview: string;
+  status: string;
+  provider: string;
+  model: string;
+  workflow_mode: string;
+  tags: string[];
+  latency_ms: number | null;
+  estimated_cost_usd: number | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
 export type ListExperimentsRequest = {
   search?: string | null;
   tags?: string[];
@@ -202,6 +223,19 @@ export type LaunchRunRequest = {
 export type LaunchBatchRunsRequest = {
   test_case_id: string;
   config_ids: string[];
+};
+
+export type ListRunsRequest = {
+  experimentIds?: string[];
+  configIds?: string[];
+  providers?: string[];
+  models?: string[];
+  statuses?: string[];
+  tags?: string[];
+  createdFrom?: string | null;
+  createdTo?: string | null;
+  sortBy?: "created_at" | "estimated_cost_usd" | "finished_at" | "latency_ms";
+  sortOrder?: "asc" | "desc";
 };
 
 export type CreateUserProviderCredentialRequest = {
@@ -306,6 +340,80 @@ function buildExperimentsPath({
 
   const query = searchParams.toString();
   return query.length > 0 ? `/api/v1/experiments?${query}` : "/api/v1/experiments";
+}
+
+function buildRunsPath({
+  experimentIds = [],
+  configIds = [],
+  providers = [],
+  models = [],
+  statuses = [],
+  tags = [],
+  createdFrom,
+  createdTo,
+  sortBy,
+  sortOrder,
+}: ListRunsRequest = {}) {
+  const searchParams = new URLSearchParams();
+
+  for (const experimentId of experimentIds) {
+    if (experimentId.trim().length > 0) {
+      searchParams.append("experiment_id", experimentId);
+    }
+  }
+
+  for (const configId of configIds) {
+    if (configId.trim().length > 0) {
+      searchParams.append("config_id", configId);
+    }
+  }
+
+  for (const provider of providers) {
+    const normalizedProvider = provider.trim().toLowerCase();
+    if (normalizedProvider.length > 0) {
+      searchParams.append("provider", normalizedProvider);
+    }
+  }
+
+  for (const model of models) {
+    const normalizedModel = model.trim().toLowerCase();
+    if (normalizedModel.length > 0) {
+      searchParams.append("model", normalizedModel);
+    }
+  }
+
+  for (const status of statuses) {
+    const normalizedStatus = status.trim().toLowerCase();
+    if (normalizedStatus.length > 0) {
+      searchParams.append("status", normalizedStatus);
+    }
+  }
+
+  for (const tag of tags) {
+    const normalizedTag = tag.trim().toLowerCase();
+    if (normalizedTag.length > 0) {
+      searchParams.append("tag", normalizedTag);
+    }
+  }
+
+  if (createdFrom && createdFrom.trim().length > 0) {
+    searchParams.set("created_from", createdFrom);
+  }
+
+  if (createdTo && createdTo.trim().length > 0) {
+    searchParams.set("created_to", createdTo);
+  }
+
+  if (sortBy) {
+    searchParams.set("sort_by", sortBy);
+  }
+
+  if (sortOrder) {
+    searchParams.set("sort_order", sortOrder);
+  }
+
+  const query = searchParams.toString();
+  return query.length > 0 ? `/api/v1/runs?${query}` : "/api/v1/runs";
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {
@@ -486,6 +594,9 @@ export function createApiClient({
           body: payload,
           method: "PUT",
         }),
+    },
+    runs: {
+      list: (params?: ListRunsRequest) => request<RunHistoryResponse[]>(buildRunsPath(params)),
     },
     settings: {
       createCredential: (payload: CreateUserProviderCredentialRequest) =>

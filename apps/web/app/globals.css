@@ -1025,6 +1025,72 @@ select {
   color: var(--ink-soft);
 }
 
+.runs-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.runs-summary-card,
+.runs-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.runs-summary-card::after,
+.runs-card-accent::after {
+  content: "";
+  position: absolute;
+  inset: auto -34px -34px auto;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(186, 90, 49, 0.18), transparent 70%);
+  pointer-events: none;
+}
+
+.runs-card {
+  display: grid;
+  gap: 20px;
+}
+
+.runs-filter-grid {
+  align-items: end;
+}
+
+.runs-table-shell {
+  overflow-x: auto;
+}
+
+.runs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.runs-table th,
+.runs-table td {
+  padding: 16px 14px;
+  border-bottom: 1px solid rgba(27, 36, 50, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.runs-table th {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.runs-table-primary {
+  font-weight: 600;
+}
+
+.runs-table-secondary {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
 .run-metrics {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
