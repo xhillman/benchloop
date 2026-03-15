@@ -3,6 +3,7 @@ import json
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from uuid import uuid4
 
 import httpx
 import jwt
@@ -290,6 +291,66 @@ def test_credential_endpoints_require_authentication() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "json_body"),
+    [
+        ("GET", "/api/v1/settings", None),
+        (
+            "PUT",
+            "/api/v1/settings",
+            {
+                "default_provider": "openai",
+                "default_model": "gpt-4o-mini",
+                "timezone": "UTC",
+            },
+        ),
+        ("GET", "/api/v1/settings/credentials", None),
+        (
+            "POST",
+            "/api/v1/settings/credentials",
+            {
+                "provider": "openai",
+                "api_key": "sk-test-secret-1234",
+                "key_label": "Primary key",
+            },
+        ),
+        (
+            "PUT",
+            f"/api/v1/settings/credentials/{uuid4()}",
+            {
+                "api_key": "sk-test-secret-5678",
+                "key_label": "Rotated key",
+            },
+        ),
+        ("DELETE", f"/api/v1/settings/credentials/{uuid4()}", None),
+        ("POST", f"/api/v1/settings/credentials/{uuid4()}/validate", None),
+    ],
+)
+def test_all_settings_routes_require_authentication(
+    method: str,
+    path: str,
+    json_body: dict[str, object | None] | None,
+) -> None:
+    app = create_app()
+
+    response = request(
+        app,
+        method,
+        path,
+        json_body=json_body,
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
 def test_create_and_list_credentials_return_masked_metadata_only(
     rsa_private_key,
     sqlite_database_url,
@@ -344,6 +405,34 @@ def test_create_and_list_credentials_return_masked_metadata_only(
         app.state.encryption_service.decrypt(credentials[0].encrypted_api_key)
         == "sk-test-secret-1234"
     )
+
+
+def test_credential_validation_errors_redact_plaintext_api_keys(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+    secret_api_key = "sk-test-secret-1234"
+
+    response = request(
+        app,
+        "POST",
+        "/api/v1/settings/credentials",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "api_key": secret_api_key,
+            "key_label": "Primary key",
+        },
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    serialized_payload = json.dumps(payload)
+
+    assert secret_api_key not in serialized_payload
+    assert payload["error"]["code"] == "validation_error"
+    assert payload["error"]["message"] == "Request validation failed."
+    assert payload["error"]["details"][0]["input"]["api_key"] == "[REDACTED]"
 
 
 def test_create_credential_rejects_duplicate_active_provider_for_same_user(

@@ -6,6 +6,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from benchloop_api.settings.encryption import redact_secret_values
+
 
 class ErrorDetail(BaseModel):
     code: str
@@ -66,7 +68,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             code="validation_error",
             message="Request validation failed.",
-            details=exc.errors(),
+            details=redact_secret_values(exc.errors()),
         )
 
     @app.exception_handler(Exception)

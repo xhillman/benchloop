@@ -120,6 +120,13 @@ Implemented in `B016`:
   - thin provider credential validation adapters for OpenAI and Anthropic
   - reusable validator registry aligned with the later execution adapter contract
 
+Implemented in `B018`:
+
+- `apps/api/tests`
+  - regression coverage for auth enforcement across all settings routes
+  - cross-user credential access remains closed with not-found semantics
+  - credential validation errors redact submitted secret values before returning API error details
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`
