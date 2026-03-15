@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getApiClientMock = vi.hoisted(() => vi.fn());
@@ -28,14 +28,20 @@ import { ExperimentsWorkspace } from "@/components/experiments/experiments-works
 function buildBrowserClientMock() {
   return {
     experiments: {
+      cloneConfig: vi.fn(),
+      createConfig: vi.fn(),
       create: vi.fn(),
       createTestCase: vi.fn(),
+      deleteConfig: vi.fn(),
       delete: vi.fn(),
       deleteTestCase: vi.fn(),
       duplicateTestCase: vi.fn(),
       get: vi.fn(),
+      listConfigs: vi.fn(),
       list: vi.fn(),
       listTestCases: vi.fn(),
+      markConfigBaseline: vi.fn(),
+      updateConfig: vi.fn(),
       updateTestCase: vi.fn(),
       update: vi.fn(),
     },
@@ -197,6 +203,28 @@ describe("experiments page", () => {
             updated_at: "2025-01-02T00:00:00Z",
           },
         ]),
+        listConfigs: vi.fn(async () => [
+          {
+            id: "cfg_1",
+            experiment_id: "exp_1",
+            name: "Direct answer",
+            version_label: "v1",
+            description: "Fast baseline answer.",
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            workflow_mode: "single_shot",
+            system_prompt: "You are a support assistant.",
+            user_prompt_template: "Reply to this ticket: {{ input_text }}",
+            temperature: 0.2,
+            max_output_tokens: 400,
+            top_p: 0.9,
+            context_bundle_id: null,
+            tags: ["cheap", "fast"],
+            is_baseline: true,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          },
+        ]),
       },
     });
 
@@ -237,6 +265,7 @@ describe("experiment detail shell", () => {
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-04T00:00:00Z",
     });
+    browserClient.experiments.listConfigs.mockResolvedValue([]);
     browserClient.experiments.createTestCase.mockResolvedValue({
       id: "case_2",
       experiment_id: "exp_1",
@@ -283,6 +312,7 @@ describe("experiment detail shell", () => {
             created_at: "2025-01-01T00:00:00Z",
             updated_at: "2025-01-02T00:00:00Z",
           }}
+          initialConfigs={[]}
           initialTestCases={[
             {
               id: "case_1",
@@ -377,6 +407,7 @@ describe("experiment detail shell", () => {
             created_at: "2025-01-01T00:00:00Z",
             updated_at: "2025-01-02T00:00:00Z",
           }}
+          initialConfigs={[]}
           initialTestCases={[
             {
               id: "case_1",
@@ -467,6 +498,259 @@ describe("experiment detail shell", () => {
         "exp_1",
         expect.stringMatching(/^case_/),
       );
+    });
+  });
+
+  it("creates, edits, clones, marks baseline, and deletes configs from the detail tab", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.createConfig.mockResolvedValue({
+      id: "cfg_2",
+      experiment_id: "exp_1",
+      name: "Context answer",
+      version_label: "v2",
+      description: "Adds context before replying.",
+      provider: "anthropic",
+      model: "claude-3-5-sonnet",
+      workflow_mode: "prompt_plus_context",
+      system_prompt: "You are a precise support assistant.",
+      user_prompt_template: "Answer with context: {{ input_text }}",
+      temperature: 0.4,
+      max_output_tokens: 600,
+      top_p: null,
+      context_bundle_id: null,
+      tags: ["context", "thorough"],
+      is_baseline: false,
+      created_at: "2025-01-05T00:00:00Z",
+      updated_at: "2025-01-05T00:00:00Z",
+    });
+    browserClient.experiments.updateConfig.mockResolvedValue({
+      id: "cfg_1",
+      experiment_id: "exp_1",
+      name: "Direct answer revised",
+      version_label: "v1",
+      description: "Tighter support reply.",
+      provider: "openai",
+      model: "gpt-4.1",
+      workflow_mode: "single_shot",
+      system_prompt: "You are a concise support assistant.",
+      user_prompt_template: "Reply clearly to this ticket: {{ input_text }}",
+      temperature: 0.1,
+      max_output_tokens: 350,
+      top_p: 0.8,
+      context_bundle_id: null,
+      tags: ["cheap", "revised"],
+      is_baseline: false,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-06T00:00:00Z",
+    });
+    browserClient.experiments.cloneConfig.mockResolvedValue({
+      id: "cfg_3",
+      experiment_id: "exp_1",
+      name: "Direct answer revised",
+      version_label: "v1-copy",
+      description: "Tighter support reply.",
+      provider: "openai",
+      model: "gpt-4.1",
+      workflow_mode: "single_shot",
+      system_prompt: "You are a concise support assistant.",
+      user_prompt_template: "Reply clearly to this ticket: {{ input_text }}",
+      temperature: 0.1,
+      max_output_tokens: 350,
+      top_p: 0.8,
+      context_bundle_id: null,
+      tags: ["cheap", "revised"],
+      is_baseline: false,
+      created_at: "2025-01-07T00:00:00Z",
+      updated_at: "2025-01-07T00:00:00Z",
+    });
+    browserClient.experiments.markConfigBaseline.mockResolvedValue({
+      id: "cfg_3",
+      experiment_id: "exp_1",
+      name: "Direct answer revised",
+      version_label: "v1-copy",
+      description: "Tighter support reply.",
+      provider: "openai",
+      model: "gpt-4.1",
+      workflow_mode: "single_shot",
+      system_prompt: "You are a concise support assistant.",
+      user_prompt_template: "Reply clearly to this ticket: {{ input_text }}",
+      temperature: 0.1,
+      max_output_tokens: 350,
+      top_p: 0.8,
+      context_bundle_id: null,
+      tags: ["cheap", "revised"],
+      is_baseline: true,
+      created_at: "2025-01-07T00:00:00Z",
+      updated_at: "2025-01-08T00:00:00Z",
+    });
+    browserClient.experiments.deleteConfig.mockResolvedValue(undefined);
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialConfigs={[
+            {
+              id: "cfg_1",
+              experiment_id: "exp_1",
+              name: "Direct answer",
+              version_label: "v1",
+              description: "Fast baseline answer.",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "single_shot",
+              system_prompt: "You are a support assistant.",
+              user_prompt_template: "Reply to this ticket: {{ input_text }}",
+              temperature: 0.2,
+              max_output_tokens: 400,
+              top_p: 0.9,
+              context_bundle_id: null,
+              tags: ["cheap", "fast"],
+              is_baseline: true,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+          initialTestCases={[]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /configs/i }));
+
+    expect(screen.getByText(/keep editable config variants inside the experiment/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/^name$/i), {
+      target: { value: "Context answer" },
+    });
+    fireEvent.change(screen.getByLabelText(/version label/i), {
+      target: { value: "v2" },
+    });
+    fireEvent.change(screen.getByLabelText(/provider/i), {
+      target: { value: "anthropic" },
+    });
+    fireEvent.change(screen.getByLabelText(/model/i), {
+      target: { value: "claude-3-5-sonnet" },
+    });
+    fireEvent.change(screen.getByLabelText(/workflow mode/i), {
+      target: { value: "prompt_plus_context" },
+    });
+    fireEvent.change(screen.getByLabelText(/system prompt/i), {
+      target: { value: "You are a precise support assistant." },
+    });
+    fireEvent.change(screen.getByLabelText(/user prompt template/i), {
+      target: { value: "Answer with context: {{ input_text }}" },
+    });
+    fireEvent.change(screen.getByLabelText(/temperature/i), {
+      target: { value: "0.4" },
+    });
+    fireEvent.change(screen.getByLabelText(/max output tokens/i), {
+      target: { value: "600" },
+    });
+    fireEvent.change(screen.getByLabelText(/description/i), {
+      target: { value: "Adds context before replying." },
+    });
+    fireEvent.change(screen.getByLabelText(/config tags/i), {
+      target: { value: "context, thorough" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.createConfig).toHaveBeenCalledWith("exp_1", {
+        name: "Context answer",
+        version_label: "v2",
+        description: "Adds context before replying.",
+        provider: "anthropic",
+        model: "claude-3-5-sonnet",
+        workflow_mode: "prompt_plus_context",
+        system_prompt: "You are a precise support assistant.",
+        user_prompt_template: "Answer with context: {{ input_text }}",
+        temperature: 0.4,
+        max_output_tokens: 600,
+        top_p: null,
+        context_bundle_id: null,
+        tags: ["context", "thorough"],
+        is_baseline: false,
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Context answer")).toBeInTheDocument();
+    });
+
+    const originalConfigCard = screen.getByText("Direct answer").closest("article");
+    expect(originalConfigCard).not.toBeNull();
+
+    fireEvent.click(within(originalConfigCard!).getByRole("button", { name: /edit config/i }));
+    fireEvent.change(screen.getByLabelText(/model/i), {
+      target: { value: "gpt-4.1" },
+    });
+    fireEvent.change(screen.getByLabelText(/temperature/i), {
+      target: { value: "0.1" },
+    });
+    fireEvent.change(screen.getByLabelText(/max output tokens/i), {
+      target: { value: "350" },
+    });
+    fireEvent.change(screen.getByLabelText(/description/i), {
+      target: { value: "Tighter support reply." },
+    });
+    fireEvent.change(screen.getByLabelText(/config tags/i), {
+      target: { value: "cheap, revised" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.updateConfig).toHaveBeenCalledWith("exp_1", "cfg_1", {
+        name: "Direct answer",
+        version_label: "v1",
+        description: "Tighter support reply.",
+        provider: "openai",
+        model: "gpt-4.1",
+        workflow_mode: "single_shot",
+        system_prompt: "You are a support assistant.",
+        user_prompt_template: "Reply to this ticket: {{ input_text }}",
+        temperature: 0.1,
+        max_output_tokens: 350,
+        top_p: 0.9,
+        context_bundle_id: null,
+        tags: ["cheap", "revised"],
+        is_baseline: true,
+      });
+    });
+
+    fireEvent.click(within(originalConfigCard!).getByRole("button", { name: /clone config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.cloneConfig).toHaveBeenCalledWith("exp_1", "cfg_1");
+    });
+    await waitFor(() => {
+      expect(screen.getByText("v1-copy")).toBeInTheDocument();
+    });
+
+    const clonedConfigCard = screen.getByText("v1-copy").closest("article");
+    expect(clonedConfigCard).not.toBeNull();
+
+    fireEvent.click(within(clonedConfigCard!).getByRole("button", { name: /mark baseline/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.markConfigBaseline).toHaveBeenCalledWith("exp_1", "cfg_3");
+    });
+
+    const createdConfigCard = screen.getByText("Context answer").closest("article");
+    expect(createdConfigCard).not.toBeNull();
+
+    fireEvent.click(within(createdConfigCard!).getByRole("button", { name: /delete config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.deleteConfig).toHaveBeenCalledWith("exp_1", "cfg_2");
     });
   });
 });

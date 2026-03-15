@@ -67,6 +67,27 @@ export type TestCaseResponse = {
   updated_at: string;
 };
 
+export type ConfigResponse = {
+  id: string;
+  experiment_id: string;
+  name: string;
+  version_label: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  workflow_mode: string;
+  system_prompt: string | null;
+  user_prompt_template: string;
+  temperature: number;
+  max_output_tokens: number;
+  top_p: number | null;
+  context_bundle_id: string | null;
+  tags: string[];
+  is_baseline: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ListExperimentsRequest = {
   search?: string | null;
   tags?: string[];
@@ -91,6 +112,25 @@ export type CreateTestCaseRequest = {
 };
 
 export type UpdateTestCaseRequest = CreateTestCaseRequest;
+
+export type CreateConfigRequest = {
+  name: string;
+  version_label: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  workflow_mode: string;
+  system_prompt: string | null;
+  user_prompt_template: string;
+  temperature: number;
+  max_output_tokens: number;
+  top_p: number | null;
+  context_bundle_id: string | null;
+  tags: string[];
+  is_baseline: boolean;
+};
+
+export type UpdateConfigRequest = CreateConfigRequest;
 
 export type CreateUserProviderCredentialRequest = {
   provider: string;
@@ -292,6 +332,15 @@ export function createApiClient({
         }),
     },
     experiments: {
+      cloneConfig: (experimentId: string, configId: string) =>
+        request<ConfigResponse>(`/api/v1/experiments/${experimentId}/configs/${configId}/clone`, {
+          method: "POST",
+        }),
+      createConfig: (experimentId: string, payload: CreateConfigRequest) =>
+        request<ConfigResponse>(`/api/v1/experiments/${experimentId}/configs`, {
+          body: payload,
+          method: "POST",
+        }),
       create: (payload: CreateExperimentRequest) =>
         request<ExperimentResponse>("/api/v1/experiments", {
           body: payload,
@@ -299,6 +348,10 @@ export function createApiClient({
         }),
       delete: (experimentId: string) =>
         request<void>(`/api/v1/experiments/${experimentId}`, {
+          method: "DELETE",
+        }),
+      deleteConfig: (experimentId: string, configId: string) =>
+        request<void>(`/api/v1/experiments/${experimentId}/configs/${configId}`, {
           method: "DELETE",
         }),
       deleteTestCase: (experimentId: string, testCaseId: string) =>
@@ -314,14 +367,28 @@ export function createApiClient({
         ),
       get: (experimentId: string) =>
         request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`),
+      listConfigs: (experimentId: string) =>
+        request<ConfigResponse[]>(`/api/v1/experiments/${experimentId}/configs`),
       listTestCases: (experimentId: string) =>
         request<TestCaseResponse[]>(`/api/v1/experiments/${experimentId}/test-cases`),
       list: (params?: ListExperimentsRequest) =>
         request<ExperimentResponse[]>(buildExperimentsPath(params)),
+      markConfigBaseline: (experimentId: string, configId: string) =>
+        request<ConfigResponse>(
+          `/api/v1/experiments/${experimentId}/configs/${configId}/baseline`,
+          {
+            method: "POST",
+          },
+        ),
       createTestCase: (experimentId: string, payload: CreateTestCaseRequest) =>
         request<TestCaseResponse>(`/api/v1/experiments/${experimentId}/test-cases`, {
           body: payload,
           method: "POST",
+        }),
+      updateConfig: (experimentId: string, configId: string, payload: UpdateConfigRequest) =>
+        request<ConfigResponse>(`/api/v1/experiments/${experimentId}/configs/${configId}`, {
+          body: payload,
+          method: "PUT",
         }),
       updateTestCase: (
         experimentId: string,

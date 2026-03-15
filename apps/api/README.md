@@ -154,6 +154,22 @@ Implemented in `B021`:
 - `apps/api/alembic/versions/0005_add_test_cases_table.py`
   - migration that creates the `test_cases` table with ownership and experiment foreign keys
 
+Implemented in `B022`:
+
+- `benchloop_api.configs`
+  - user-owned `configs` model plus repository and service for experiment-scoped list, create, update, clone, baseline, and delete flows
+  - service methods verify both the parent experiment and the nested config through explicit `user_id` scoping
+- `/api/v1/experiments/{experiment_id}/configs`
+  - authenticated list and create endpoints for reusable experiment configs
+- `/api/v1/experiments/{experiment_id}/configs/{config_id}`
+  - authenticated update and delete endpoints for the owning user's configs only
+- `/api/v1/experiments/{experiment_id}/configs/{config_id}/clone`
+  - authenticated clone endpoint that copies config fields into a new row with a generated version label
+- `/api/v1/experiments/{experiment_id}/configs/{config_id}/baseline`
+  - authenticated baseline endpoint that promotes one config as the visible experiment baseline
+- `apps/api/alembic/versions/0006_add_configs_table.py`
+  - migration that creates the `configs` table with prompt, model, generation params, tags, and baseline state
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

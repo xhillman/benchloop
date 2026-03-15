@@ -75,6 +75,16 @@ Implemented in `B021`:
 - Frontend coverage
   - Vitest coverage now exercises the test case client contract and the experiment detail tab workflow
 
+Implemented in `B022`:
+
+- Experiment detail config workspace
+  - `app/(shell)/experiments/[experimentId]/page.tsx` now bootstraps experiment-scoped configs alongside the parent experiment and test cases
+  - `components/experiments/experiment-configs-workspace.tsx` handles create, edit, clone, baseline, and delete flows for prompt or model configs inside the detail route
+- Typed config client contract
+  - `lib/api/client.ts` now exposes experiment-scoped config CRUD, clone, and baseline helpers shared by server and browser callers
+- Frontend coverage
+  - Vitest coverage now exercises the config client contract and the experiment detail config tab workflow
+
 Local commands:
 
 - `make web-install`

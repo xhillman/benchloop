@@ -2,7 +2,12 @@ import Link from "next/link";
 
 import { ExperimentDetailShell } from "@/components/experiments/experiment-detail-shell";
 import { ErrorState } from "@/components/states/error-state";
-import { ApiClientError, type ExperimentResponse, type TestCaseResponse } from "@/lib/api/client";
+import {
+  ApiClientError,
+  type ConfigResponse,
+  type ExperimentResponse,
+  type TestCaseResponse,
+} from "@/lib/api/client";
 import { getApiClient } from "@/lib/api/server";
 
 type ExperimentDetailPageProps = {
@@ -14,14 +19,16 @@ type ExperimentDetailPageProps = {
 export default async function ExperimentDetailPage({ params }: ExperimentDetailPageProps) {
   const { experimentId } = await params;
   let bootstrapError: string | null = null;
+  let configs: ConfigResponse[] = [];
   let experiment: ExperimentResponse | null = null;
   let testCases: TestCaseResponse[] = [];
 
   try {
     const apiClient = await getApiClient();
-    [experiment, testCases] = await Promise.all([
+    [experiment, testCases, configs] = await Promise.all([
       apiClient.experiments.get(experimentId),
       apiClient.experiments.listTestCases(experimentId),
+      apiClient.experiments.listConfigs(experimentId),
     ]);
   } catch (error) {
     if (error instanceof ApiClientError) {
@@ -37,8 +44,8 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
         <p className="eyebrow">Experiment detail</p>
         <h1>Use one shell to steer the rest of the experiment workflow.</h1>
         <p>
-          This route is the hub for the experiment. The overview is live now and the later tabs are
-          in place so test cases, configs, runs, and compare can land without changing navigation.
+          This route is the hub for the experiment. Overview, test cases, and configs are live now,
+          while runs and compare stay in place for the next slices.
         </p>
         <div className="cta-row">
           <Link className="cta-link secondary" href="/experiments">
@@ -55,7 +62,11 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
           />
         </section>
       ) : (
-        <ExperimentDetailShell initialExperiment={experiment} initialTestCases={testCases} />
+        <ExperimentDetailShell
+          initialConfigs={configs}
+          initialExperiment={experiment}
+          initialTestCases={testCases}
+        />
       )}
     </>
   );

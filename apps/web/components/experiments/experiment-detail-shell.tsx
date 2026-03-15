@@ -3,17 +3,20 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState, type FormEvent } from "react";
 
+import { ExperimentConfigsWorkspace } from "@/components/experiments/experiment-configs-workspace";
 import { ExperimentTestCasesWorkspace } from "@/components/experiments/experiment-test-cases-workspace";
 import { useAppShellState } from "@/components/providers/app-shell-provider";
 import { useApiClient } from "@/lib/api/browser";
 import {
   ApiClientError,
+  type ConfigResponse,
   type ExperimentResponse,
   type TestCaseResponse,
   type UpdateExperimentRequest,
 } from "@/lib/api/client";
 
 type ExperimentDetailShellProps = {
+  initialConfigs: ConfigResponse[];
   initialExperiment: ExperimentResponse;
   initialTestCases: TestCaseResponse[];
 };
@@ -28,16 +31,12 @@ type FeedbackState =
   | null;
 
 const tabCopy: Record<
-  Exclude<DetailTab, "overview" | "test-cases">,
+  Exclude<DetailTab, "configs" | "overview" | "test-cases">,
   {
     heading: string;
     description: string;
   }
 > = {
-  configs: {
-    heading: "Config tab placeholder",
-    description: "B022 will add prompt and model config editing inside this experiment lane.",
-  },
   runs: {
     heading: "Runs tab placeholder",
     description: "Later execution work will turn this lane into the run history surface for the experiment.",
@@ -82,6 +81,7 @@ const tabs: { value: DetailTab; label: string }[] = [
 ];
 
 export function ExperimentDetailShell({
+  initialConfigs,
   initialExperiment,
   initialTestCases,
 }: ExperimentDetailShellProps) {
@@ -306,6 +306,8 @@ export function ExperimentDetailShell({
             experimentId={experiment.id}
             initialTestCases={initialTestCases}
           />
+        ) : activeTab === "configs" ? (
+          <ExperimentConfigsWorkspace experimentId={experiment.id} initialConfigs={initialConfigs} />
         ) : (
           <div className="experiment-tab-panel" role="tabpanel">
             <span className="state-badge">{tabs.find((tab) => tab.value === activeTab)?.label}</span>

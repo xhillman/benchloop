@@ -437,4 +437,202 @@ describe("api client", () => {
       }),
     );
   });
+
+  it("routes config CRUD, cloning, and baseline actions through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "cfg_1",
+              experiment_id: "exp_1",
+              name: "Direct answer",
+              version_label: "v1",
+              description: "Fast baseline answer.",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "single_shot",
+              system_prompt: "You are a support assistant.",
+              user_prompt_template: "Reply to this ticket: {{ input_text }}",
+              temperature: 0.2,
+              max_output_tokens: 400,
+              top_p: 0.9,
+              context_bundle_id: null,
+              tags: ["cheap", "fast"],
+              is_baseline: true,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "cfg_2",
+            experiment_id: "exp_1",
+            name: "Context answer",
+            version_label: "v2",
+            description: "Adds context before replying.",
+            provider: "anthropic",
+            model: "claude-3-5-sonnet",
+            workflow_mode: "prompt_plus_context",
+            system_prompt: "You are a precise support assistant.",
+            user_prompt_template: "Answer with context: {{ input_text }}",
+            temperature: 0.4,
+            max_output_tokens: 600,
+            top_p: null,
+            context_bundle_id: null,
+            tags: ["context", "thorough"],
+            is_baseline: false,
+            created_at: "2025-01-03T00:00:00Z",
+            updated_at: "2025-01-03T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "cfg_3",
+            experiment_id: "exp_1",
+            name: "Direct answer",
+            version_label: "v1-copy",
+            description: "Fast baseline answer.",
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            workflow_mode: "single_shot",
+            system_prompt: "You are a support assistant.",
+            user_prompt_template: "Reply to this ticket: {{ input_text }}",
+            temperature: 0.2,
+            max_output_tokens: 400,
+            top_p: 0.9,
+            context_bundle_id: null,
+            tags: ["cheap", "fast"],
+            is_baseline: false,
+            created_at: "2025-01-04T00:00:00Z",
+            updated_at: "2025-01-04T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "cfg_3",
+            experiment_id: "exp_1",
+            name: "Direct answer",
+            version_label: "v1-copy",
+            description: "Fast baseline answer.",
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            workflow_mode: "single_shot",
+            system_prompt: "You are a support assistant.",
+            user_prompt_template: "Reply to this ticket: {{ input_text }}",
+            temperature: 0.2,
+            max_output_tokens: 400,
+            top_p: 0.9,
+            context_bundle_id: null,
+            tags: ["cheap", "fast"],
+            is_baseline: true,
+            created_at: "2025-01-04T00:00:00Z",
+            updated_at: "2025-01-05T00:00:00Z",
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+        }),
+      );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const configs = await client.experiments.listConfigs("exp_1");
+    const createdConfig = await client.experiments.createConfig("exp_1", {
+      name: "Context answer",
+      version_label: "v2",
+      description: "Adds context before replying.",
+      provider: "anthropic",
+      model: "claude-3-5-sonnet",
+      workflow_mode: "prompt_plus_context",
+      system_prompt: "You are a precise support assistant.",
+      user_prompt_template: "Answer with context: {{ input_text }}",
+      temperature: 0.4,
+      max_output_tokens: 600,
+      top_p: null,
+      context_bundle_id: null,
+      tags: ["context", "thorough"],
+      is_baseline: false,
+    });
+    const clonedConfig = await client.experiments.cloneConfig("exp_1", "cfg_1");
+    const baselineConfig = await client.experiments.markConfigBaseline("exp_1", "cfg_3");
+    await client.experiments.deleteConfig("exp_1", "cfg_2");
+
+    expect(configs).toHaveLength(1);
+    expect(createdConfig.id).toBe("cfg_2");
+    expect(clonedConfig.version_label).toBe("v1-copy");
+    expect(baselineConfig.is_baseline).toBe(true);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/experiments/exp_1/configs",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/experiments/exp_1/configs",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:8000/api/v1/experiments/exp_1/configs/cfg_1/clone",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:8000/api/v1/experiments/exp_1/configs/cfg_3/baseline",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost:8000/api/v1/experiments/exp_1/configs/cfg_2",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
 });
