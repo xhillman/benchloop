@@ -379,6 +379,84 @@ describe("api client", () => {
     );
   });
 
+  it("routes run detail reads through the shared client", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "run_1",
+          experiment_id: "exp_1",
+          experiment_name: "Support triage",
+          test_case_id: "case_1",
+          config_id: "cfg_1",
+          credential_id: null,
+          status: "completed",
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          workflow_mode: "single_shot",
+          config_snapshot: {
+            config_id: "cfg_1",
+            name: "Refund baseline",
+            version_label: "v1",
+            description: "Direct support response.",
+            provider: "openai",
+            model: "gpt-4.1-mini",
+            workflow_mode: "single_shot",
+            system_prompt_template: "You are a billing assistant.",
+            rendered_system_prompt: "You are a billing assistant.",
+            user_prompt_template: "Respond to {{input}}",
+            rendered_user_prompt: "Respond to Customer asks for a refund.",
+            temperature: 0.2,
+            max_output_tokens: 256,
+            top_p: 0.9,
+            context_bundle_id: null,
+            tags: ["priority"],
+            is_baseline: true,
+          },
+          input_snapshot: {
+            test_case_id: "case_1",
+            input_text: "Customer asks for a refund.",
+            expected_output_text: "Acknowledge the refund.",
+            notes: "Core billing case.",
+            tags: ["refund"],
+          },
+          context_snapshot: null,
+          output_text: "Refund confirmed.",
+          error_message: null,
+          usage_input_tokens: 44,
+          usage_output_tokens: 12,
+          usage_total_tokens: 56,
+          latency_ms: 240,
+          estimated_cost_usd: 0.0014,
+          started_at: "2025-01-10T15:00:00Z",
+          finished_at: "2025-01-10T15:00:02Z",
+          created_at: "2025-01-10T15:00:00Z",
+          updated_at: "2025-01-10T15:00:02Z",
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
+    );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const run = await client.runs.get("run_1");
+
+    expect(run.experiment_name).toBe("Support triage");
+    expect(run.config_snapshot.rendered_user_prompt).toBe("Respond to Customer asks for a refund.");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/runs/run_1",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+  });
+
   it("routes test case CRUD and duplication through the shared client", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

@@ -194,6 +194,29 @@ Implemented in `B024`:
 - `apps/api/alembic/versions/0007_add_runs_table.py`
   - migration that creates the `runs` table used by the execution pipeline foundation
 
+Implemented in `B025`:
+
+- `/api/v1/experiments/{experiment_id}/runs`
+  - authenticated single-run launch endpoint for one config against one owned test case
+- `/api/v1/experiments/{experiment_id}/runs/batch`
+  - authenticated batch launch endpoint for multiple owned configs against one owned test case
+- `benchloop_api.execution.service:RunLaunchService`
+  - orchestration layer that validates experiment ownership and launches single or batch single-shot runs
+
+Implemented in `B026`:
+
+- `/api/v1/runs`
+  - authenticated run history index with ownership-scoped filtering by experiment, config, provider, model, status, tag, and created date
+- `benchloop_api.runs.service:RunHistoryService`
+  - sortable read model for run history entries with experiment context and snapshot-derived tags
+
+Implemented in `B027`:
+
+- `/api/v1/runs/{run_id}`
+  - authenticated run detail endpoint that returns the immutable prompt, input, context, output, usage, latency, cost, and failure-state record for one owned run
+- `benchloop_api.runs.service:RunHistoryService.get`
+  - ownership-scoped detail lookup for the run history surface
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

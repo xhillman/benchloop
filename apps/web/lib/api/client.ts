@@ -150,6 +150,10 @@ export type RunResponse = {
   updated_at: string;
 };
 
+export type RunDetailResponse = RunResponse & {
+  experiment_name: string | null;
+};
+
 export type RunHistoryResponse = {
   id: string;
   experiment_id: string;
@@ -596,6 +600,7 @@ export function createApiClient({
         }),
     },
     runs: {
+      get: (runId: string) => request<RunDetailResponse>(`/api/v1/runs/${runId}`),
       list: (params?: ListRunsRequest) => request<RunHistoryResponse[]>(buildRunsPath(params)),
     },
     settings: {

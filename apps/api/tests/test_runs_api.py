@@ -1,7 +1,8 @@
 import asyncio
 import json
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 from uuid import UUID
 
 import httpx
@@ -19,6 +20,7 @@ from benchloop_api.execution.adapters import (
     ProviderExecutionError,
     ProviderExecutionResult,
     ProviderUsage,
+    SingleShotProviderAdapter,
     SingleShotProviderRequest,
 )
 from benchloop_api.experiments.models import Experiment
@@ -52,6 +54,24 @@ class StubProviderAdapter:
             raise self._error
         assert self._result is not None
         return self._result
+
+
+class RunLaunchRecords(TypedDict):
+    user: User
+    experiment: Experiment
+    test_case: BenchloopTestCase
+    config: Config
+    credential: UserProviderCredential
+
+
+class RunHistoryRecords(TypedDict):
+    owner: User
+    billing_experiment: Experiment
+    outbound_experiment: Experiment
+    refund_config: Config
+    escalation_config: Config
+    other_run: Run
+    runs: list[Run]
 
 
 def request(
@@ -127,7 +147,7 @@ def build_test_app(
     rsa_private_key,
     sqlite_database_url,
     *,
-    adapters: list[StubProviderAdapter] | None = None,
+    adapters: Sequence[SingleShotProviderAdapter] | None = None,
 ):
     app = create_app(
         {
@@ -143,7 +163,7 @@ def build_test_app(
         app.state.settings,
         transport=build_jwks_transport(rsa_private_key.public_key()),
     )
-    app.state.provider_adapter_registry = ProviderAdapterRegistry(adapters=adapters or [])
+    app.state.provider_adapter_registry = ProviderAdapterRegistry(adapters=list(adapters or []))
     return app
 
 
@@ -157,7 +177,7 @@ def seed_run_launch_records(
     encryption_service: EncryptionService,
     *,
     workflow_mode: str = "single_shot",
-) -> dict[str, object]:
+) -> RunLaunchRecords:
     user = User(clerk_user_id="user_123")
     session.add(user)
     session.flush()
@@ -249,7 +269,17 @@ def build_input_snapshot(test_case: BenchloopTestCase) -> dict[str, object]:
     }
 
 
-def seed_run_history_records(session) -> dict[str, object]:
+def build_context_snapshot() -> dict[str, object]:
+    return {
+        "source": "inline",
+        "bundle_id": None,
+        "name": "Refund policy excerpt",
+        "content_text": "Refunds for duplicate charges are completed within 5 business days.",
+        "notes": "Ground the answer in the billing policy.",
+    }
+
+
+def seed_run_history_records(session) -> RunHistoryRecords:
     owner = User(clerk_user_id="user_123")
     other_user = User(clerk_user_id="user_456")
     session.add_all([owner, other_user])
@@ -432,7 +462,7 @@ def seed_run_history_records(session) -> dict[str, object]:
             rendered_user_prompt="Handle escalation: Escalate the account lockout issue.",
         ),
         input_snapshot_json=build_input_snapshot(escalation_case),
-        context_snapshot_json=None,
+        context_snapshot_json=build_context_snapshot(),
         output_text="Escalated to security with the required context.",
         error_message=None,
         usage_input_tokens=98,
@@ -510,6 +540,7 @@ def seed_run_history_records(session) -> dict[str, object]:
         "outbound_experiment": outbound_experiment,
         "refund_config": refund_config,
         "escalation_config": escalation_config,
+        "other_run": other_run,
         "runs": [run_one, run_two, run_three],
     }
 
@@ -542,6 +573,22 @@ def test_run_history_endpoint_requires_authentication() -> None:
     app = create_app()
 
     response = request(app, "GET", "/api/v1/runs")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
+def test_run_detail_endpoint_requires_authentication() -> None:
+    app = create_app()
+
+    response = request(app, "GET", "/api/v1/runs/11111111-1111-1111-1111-111111111111")
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
@@ -781,6 +828,91 @@ def test_run_history_supports_filters_and_sorting(
         "Refund baseline",
     ]
     assert [run["latency_ms"] for run in sorted_payload] == [120, 240]
+
+
+def test_run_detail_returns_owned_snapshot_and_execution_fields(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['runs'][1].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == str(records["runs"][1].id)
+    assert payload["experiment_name"] == "Billing support lab"
+    assert payload["status"] == "completed"
+    assert payload["config_snapshot"]["name"] == "Escalation variant"
+    assert payload["config_snapshot"]["rendered_user_prompt"] == (
+        "Handle escalation: Escalate the account lockout issue."
+    )
+    assert payload["input_snapshot"]["input_text"] == "Escalate the account lockout issue."
+    assert payload["context_snapshot"] == build_context_snapshot()
+    assert payload["output_text"] == "Escalated to security with the required context."
+    assert payload["usage_total_tokens"] == 118
+    assert payload["latency_ms"] == 120
+    assert payload["estimated_cost_usd"] == 0.0008
+
+
+def test_run_detail_returns_failure_state_for_failed_runs(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['runs'][2].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "failed"
+    assert payload["experiment_name"] == "Outbound follow-up"
+    assert payload["output_text"] is None
+    assert payload["error_message"] == "Provider timed out."
+    assert payload["usage_total_tokens"] is None
+    assert payload["estimated_cost_usd"] is None
+
+
+def test_run_detail_hides_runs_owned_by_other_users(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['other_run'].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Run was not found.",
+            "details": None,
+        }
+    }
 
 
 def test_launch_routes_reject_non_single_shot_configs(

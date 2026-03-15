@@ -89,6 +89,10 @@ class RunResponse(ApiResponseModel):
     updated_at: datetime
 
 
+class RunDetailResponse(RunResponse):
+    experiment_name: str | None = None
+
+
 class RunHistoryResponse(ApiResponseModel):
     id: UUID
     experiment_id: UUID
@@ -160,6 +164,14 @@ def _to_response(run) -> RunResponse:
     )
 
 
+def _to_detail_response(entry) -> RunDetailResponse:
+    response = _to_response(entry.run)
+    return RunDetailResponse(
+        **response.model_dump(),
+        experiment_name=entry.experiment_name,
+    )
+
+
 def _not_found(detail: str) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -223,6 +235,27 @@ async def list_runs(
         ),
     )
     return [_to_history_response(run) for run in runs]
+
+
+@history_router.get(
+    "/{run_id}",
+    response_model=RunDetailResponse,
+    responses=documented_error_statuses(include_auth=True, extra_statuses=(404,)),
+)
+async def get_run(
+    run_id: UUID,
+    current_user: CurrentUser,
+    run_history_service: Annotated[RunHistoryService, Depends(get_run_history_service)],
+) -> RunDetailResponse:
+    try:
+        run = run_history_service.get(
+            user_id=current_user.id,
+            run_id=run_id,
+        )
+    except UserOwnedResourceNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+
+    return _to_detail_response(run)
 
 
 @router.post(

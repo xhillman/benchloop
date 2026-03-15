@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from benchloop_api.configs.models import Config
 from benchloop_api.execution.adapters import ProviderExecutionResult
 from benchloop_api.execution.snapshots import RunSnapshotBundle
+from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
 from benchloop_api.experiments.repository import ExperimentRepository
 from benchloop_api.runs.models import Run
 from benchloop_api.runs.repository import RunRepository
@@ -57,6 +58,12 @@ class RunHistoryEntry:
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+
+@dataclass(frozen=True)
+class RunDetailEntry:
+    run: Run
+    experiment_name: str | None
 
 
 class RunService:
@@ -162,6 +169,24 @@ class RunHistoryService:
             self._to_history_entry(run=run, experiment_name=experiment_names.get(run.experiment_id))
             for run in sorted_runs
         ]
+
+    def get(self, *, user_id: UUID, run_id: UUID) -> RunDetailEntry:
+        run = self._repository.get_owned(user_id=user_id, resource_id=run_id)
+        if run is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Run",
+                resource_id=run_id,
+                user_id=user_id,
+            )
+
+        experiment = self._experiment_repository.get_owned(
+            user_id=user_id,
+            resource_id=run.experiment_id,
+        )
+        return RunDetailEntry(
+            run=run,
+            experiment_name=experiment.name if experiment is not None else None,
+        )
 
     def _matches_filters(self, *, run: Run, filters: RunHistoryFilters) -> bool:
         created_at = _coerce_utc_datetime(run.created_at)

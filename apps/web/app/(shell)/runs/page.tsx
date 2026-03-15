@@ -33,8 +33,8 @@ export default async function RunsPage() {
         <h1>Keep the execution record sortable, filterable, and reproducible.</h1>
         <p>
           This index is the first durable history surface for completed and failed runs. Use it to
-          slice by experiment, provider, model, config, tag, and date before the source-of-truth
-          detail page lands.
+          slice by experiment, provider, model, config, tag, and date, then open the exact run to
+          inspect its immutable snapshot.
         </p>
       </section>
 

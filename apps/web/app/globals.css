@@ -1085,10 +1085,81 @@ select {
   font-weight: 600;
 }
 
+.runs-table-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.runs-table-link:hover,
+.runs-table-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .runs-table-secondary {
   margin-top: 6px;
   color: var(--ink-soft);
   line-height: 1.5;
+}
+
+.run-detail-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.run-detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.run-detail-meta-grid dt {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.run-detail-meta-grid dd {
+  margin: 8px 0 0;
+  font-weight: 600;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.run-detail-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.run-detail-block-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.run-detail-block-label {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.run-detail-block {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(27, 36, 50, 0.08);
+  background: rgba(27, 36, 50, 0.04);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+}
+
+.run-detail-block-error {
+  border-color: rgba(143, 63, 29, 0.18);
+  background: rgba(143, 63, 29, 0.08);
+  color: var(--accent-deep);
 }
 
 .run-metrics {
@@ -1151,6 +1222,10 @@ select {
   .experiments-list-header,
   .experiment-card-header {
     flex-direction: column;
+  }
+
+  .run-detail-meta-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-copy h1,

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useState } from "react";
 
 import { useAppShellState } from "@/components/providers/app-shell-provider";
@@ -390,8 +391,7 @@ export function RunsWorkspace({ initialExperiments, initialRuns }: RunsWorkspace
             <h2>Readable status, provider, model, and experiment context in one table.</h2>
           </div>
           <p className="experiments-list-meta">
-            The run detail page lands next, but this index already points to the exact record you
-            need.
+            Open any run to inspect the immutable snapshot and execution record behind it.
           </p>
         </div>
 
@@ -423,7 +423,15 @@ export function RunsWorkspace({ initialExperiments, initialRuns }: RunsWorkspace
                 {runs.map((run) => (
                   <tr key={run.id}>
                     <td>
-                      <div className="runs-table-primary">{formatTimestamp(run.started_at)}</div>
+                      <div className="runs-table-primary">
+                        <Link
+                          aria-label={`Open detail for ${run.config_name} ${run.config_version_label}`.trim()}
+                          className="runs-table-link"
+                          href={`/runs/${run.id}`}
+                        >
+                          {formatTimestamp(run.started_at)}
+                        </Link>
+                      </div>
                       <div className="runs-table-secondary">{run.test_case_input_preview}</div>
                     </td>
                     <td>

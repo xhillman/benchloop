@@ -94,15 +94,16 @@ class OpenAISingleShotAdapter:
             timeout_seconds=self._timeout_seconds,
         )
 
-        usage = response_json.get("usage") or {}
+        usage = response_json.get("usage")
+        usage_payload: dict[str, object] = usage if isinstance(usage, dict) else {}
         return ProviderExecutionResult(
             provider=self.provider,
             model=str(response_json.get("model") or request.model),
             output_text=_extract_openai_output_text(response_json),
             usage=ProviderUsage(
-                input_tokens=_coerce_optional_int(usage.get("prompt_tokens")),
-                output_tokens=_coerce_optional_int(usage.get("completion_tokens")),
-                total_tokens=_coerce_optional_int(usage.get("total_tokens")),
+                input_tokens=_coerce_optional_int(usage_payload.get("prompt_tokens")),
+                output_tokens=_coerce_optional_int(usage_payload.get("completion_tokens")),
+                total_tokens=_coerce_optional_int(usage_payload.get("total_tokens")),
             ),
             latency_ms=latency_ms,
         )
@@ -148,9 +149,10 @@ class AnthropicSingleShotAdapter:
             timeout_seconds=self._timeout_seconds,
         )
 
-        usage = response_json.get("usage") or {}
-        input_tokens = _coerce_optional_int(usage.get("input_tokens"))
-        output_tokens = _coerce_optional_int(usage.get("output_tokens"))
+        usage = response_json.get("usage")
+        usage_payload: dict[str, object] = usage if isinstance(usage, dict) else {}
+        input_tokens = _coerce_optional_int(usage_payload.get("input_tokens"))
+        output_tokens = _coerce_optional_int(usage_payload.get("output_tokens"))
         total_tokens = None
         if input_tokens is not None and output_tokens is not None:
             total_tokens = input_tokens + output_tokens
@@ -273,8 +275,9 @@ def _normalize_content_text(content: object) -> str | None:
         for item in content:
             if not isinstance(item, dict):
                 continue
-            if item.get("type") == "text" and isinstance(item.get("text"), str):
-                text_parts.append(item["text"])
+            text = item.get("text")
+            if item.get("type") == "text" and isinstance(text, str):
+                text_parts.append(text)
         normalized = "".join(text_parts).strip()
         return normalized or None
     return None
@@ -285,10 +288,16 @@ def _coerce_optional_int(value: object) -> int | None:
         return None
     if isinstance(value, bool):
         return None
-    try:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
         return int(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
 
 
 def create_provider_adapter_registry(

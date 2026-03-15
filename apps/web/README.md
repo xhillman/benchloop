@@ -85,6 +85,29 @@ Implemented in `B022`:
 - Frontend coverage
   - Vitest coverage now exercises the config client contract and the experiment detail config tab workflow
 
+Implemented in `B025`:
+
+- Experiment detail run-launch workspace
+  - `components/experiments/experiment-runs-workspace.tsx` lets the user pick one test case, select one or more single-shot configs, and launch runs through the shared FastAPI client
+- Typed run-launch client contract
+  - `lib/api/client.ts` exposes single and batch run launch helpers for the experiment workspace
+
+Implemented in `B026`:
+
+- Runs history index
+  - server-rendered bootstrap under `app/(shell)/runs/page.tsx` reads the caller's run history and experiment context from FastAPI before hydrating the client workspace
+  - `components/runs/runs-workspace.tsx` handles server-backed filtering and sorting over the shared run history read model
+- Typed run-history client contract
+  - `lib/api/client.ts` exposes the ownership-scoped runs list helper used by both server and browser callers
+
+Implemented in `B027`:
+
+- Run detail page
+  - `app/(shell)/runs/[runId]/page.tsx` bootstraps one owned run through FastAPI and renders the immutable execution record
+  - `components/runs/run-detail.tsx` shows source-of-truth prompts, snapshots, inputs, outputs, usage, latency, cost, and failure state
+- Runs index navigation
+  - `components/runs/runs-workspace.tsx` now links each history row into the run detail route instead of stopping at the index
+
 Local commands:
 
 - `make web-install`
