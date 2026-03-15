@@ -602,6 +602,10 @@ export function createApiClient({
     runs: {
       get: (runId: string) => request<RunDetailResponse>(`/api/v1/runs/${runId}`),
       list: (params?: ListRunsRequest) => request<RunHistoryResponse[]>(buildRunsPath(params)),
+      rerun: (runId: string) =>
+        request<RunResponse>(`/api/v1/runs/${runId}/rerun`, {
+          method: "POST",
+        }),
     },
     settings: {
       createCredential: (payload: CreateUserProviderCredentialRequest) =>

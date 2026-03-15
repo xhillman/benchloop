@@ -1,4 +1,11 @@
-import { type RunDetailResponse } from "@/lib/api/client";
+"use client";
+
+import Link from "next/link";
+import { startTransition, useState } from "react";
+
+import { useAppShellState } from "@/components/providers/app-shell-provider";
+import { useApiClient } from "@/lib/api/browser";
+import { ApiClientError, type RunDetailResponse, type RunResponse } from "@/lib/api/client";
 
 function formatProvider(provider: string) {
   if (provider === "openai") {
@@ -45,13 +52,110 @@ function formatPrompt(value: string | null) {
   return value && value.trim().length > 0 ? value : "Not used for this run.";
 }
 
+type FeedbackState =
+  | {
+      message: string;
+      tone: "error" | "success";
+    }
+  | null;
+
 type RunDetailProps = {
   run: RunDetailResponse;
 };
 
 export function RunDetail({ run }: RunDetailProps) {
+  const apiClient = useApiClient();
+  const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
+  const [activeAction, setActiveAction] = useState<"rerun" | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [latestRerun, setLatestRerun] = useState<RunResponse | null>(null);
+
+  async function handleRerun() {
+    clearGlobalError();
+    setFeedback(null);
+    setActiveAction("rerun");
+    startLoading();
+
+    try {
+      const rerun = await apiClient.runs.rerun(run.id);
+
+      startTransition(() => {
+        setLatestRerun(rerun);
+        setFeedback({
+          tone: "success",
+          message: "Rerun created from the stored snapshot.",
+        });
+      });
+    } catch (error) {
+      const detail =
+        error instanceof ApiClientError ? `${error.message} (${error.status})` : "Request failed.";
+
+      setFeedback({
+        tone: "error",
+        message: detail,
+      });
+      setGlobalError({
+        title: "Could not rerun this snapshot",
+        detail,
+      });
+    } finally {
+      stopLoading();
+      setActiveAction(null);
+    }
+  }
+
   return (
     <div className="run-detail-shell">
+      {feedback ? (
+        <div
+          className={`settings-feedback settings-feedback-${feedback.tone}`}
+          role={feedback.tone === "error" ? "alert" : "status"}
+        >
+          {feedback.message}
+        </div>
+      ) : null}
+
+      {latestRerun ? (
+        <section className="shell-panel runs-card runs-card-accent">
+          <div className="settings-card-header">
+            <div>
+              <p className="section-kicker">Snapshot rerun</p>
+              <h2>The new run keeps the original prompt and input snapshot intact.</h2>
+            </div>
+            <p className="experiments-list-meta">
+              Later config or test case edits are ignored for this rerun path.
+            </p>
+          </div>
+
+          <dl className="run-detail-meta-grid">
+            <div>
+              <dt>New run id</dt>
+              <dd>{latestRerun.id}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{formatStatus(latestRerun.status)}</dd>
+            </div>
+            <div>
+              <dt>Provider model</dt>
+              <dd>
+                {formatProvider(latestRerun.provider)} / {latestRerun.model}
+              </dd>
+            </div>
+            <div>
+              <dt>Created</dt>
+              <dd>{formatTimestamp(latestRerun.created_at)}</dd>
+            </div>
+          </dl>
+
+          <div className="cta-row">
+            <Link className="cta-link secondary" href={`/runs/${latestRerun.id}`}>
+              Open rerun
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <section className="three-column-grid runs-summary-grid">
         <article className="shell-panel runs-summary-card">
           <p className="section-kicker">Run status</p>
@@ -81,6 +185,14 @@ export function RunDetail({ run }: RunDetailProps) {
               <p className="section-kicker">Run identity</p>
               <h2>Source-of-truth metadata for this execution record.</h2>
             </div>
+            <button
+              className="cta-link secondary"
+              disabled={activeAction === "rerun"}
+              onClick={handleRerun}
+              type="button"
+            >
+              {activeAction === "rerun" ? "Rerunning snapshot..." : "Rerun from snapshot"}
+            </button>
           </div>
 
           <dl className="run-detail-meta-grid">
@@ -172,11 +284,15 @@ export function RunDetail({ run }: RunDetailProps) {
           <div className="run-detail-stack">
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">System prompt template</p>
-              <pre className="run-detail-block">{formatPrompt(run.config_snapshot.system_prompt_template)}</pre>
+              <pre className="run-detail-block">
+                {formatPrompt(run.config_snapshot.system_prompt_template)}
+              </pre>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Rendered system prompt</p>
-              <pre className="run-detail-block">{formatPrompt(run.config_snapshot.rendered_system_prompt)}</pre>
+              <pre className="run-detail-block">
+                {formatPrompt(run.config_snapshot.rendered_system_prompt)}
+              </pre>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">User prompt template</p>

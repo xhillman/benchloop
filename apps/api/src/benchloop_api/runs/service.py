@@ -80,12 +80,29 @@ class RunService:
         test_case: TestCase,
         snapshot_bundle: RunSnapshotBundle,
     ) -> Run:
+        return self.create_pending_from_snapshot(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            config_id=config.id,
+            test_case_id=test_case.id,
+            snapshot_bundle=snapshot_bundle,
+        )
+
+    def create_pending_from_snapshot(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        config_id: UUID,
+        test_case_id: UUID,
+        snapshot_bundle: RunSnapshotBundle,
+    ) -> Run:
         run = self._repository.add(
             Run(
                 user_id=user_id,
                 experiment_id=experiment_id,
-                test_case_id=test_case.id,
-                config_id=config.id,
+                test_case_id=test_case_id,
+                config_id=config_id,
                 credential_id=None,
                 status=RUN_STATUS_PENDING,
                 provider=snapshot_bundle.config_snapshot.provider,

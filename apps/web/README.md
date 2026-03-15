@@ -108,6 +108,13 @@ Implemented in `B027`:
 - Runs index navigation
   - `components/runs/runs-workspace.tsx` now links each history row into the run detail route instead of stopping at the index
 
+Implemented in `B028`:
+
+- Run detail rerun action
+  - `components/runs/run-detail.tsx` now triggers reruns against the stored snapshot and links directly to the new run record
+- Typed rerun client contract
+  - `lib/api/client.ts` exposes the run rerun helper used by the detail surface
+
 Local commands:
 
 - `make web-install`

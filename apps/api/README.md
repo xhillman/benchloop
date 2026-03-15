@@ -217,6 +217,13 @@ Implemented in `B027`:
 - `benchloop_api.runs.service:RunHistoryService.get`
   - ownership-scoped detail lookup for the run history surface
 
+Implemented in `B028`:
+
+- `/api/v1/runs/{run_id}/rerun`
+  - authenticated rerun endpoint that launches a new run from the stored snapshot on an owned historical run
+- `benchloop_api.execution.service:RunLaunchService.rerun_from_snapshot`
+  - rebuilds the execution request from immutable snapshot JSON instead of re-reading mutable config or test case rows
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

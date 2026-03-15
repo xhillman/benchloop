@@ -601,6 +601,22 @@ def test_run_detail_endpoint_requires_authentication() -> None:
     }
 
 
+def test_rerun_endpoint_requires_authentication() -> None:
+    app = create_app()
+
+    response = request(app, "POST", "/api/v1/runs/11111111-1111-1111-1111-111111111111/rerun")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
 def test_launch_single_run_returns_a_completed_run(rsa_private_key, sqlite_database_url) -> None:
     adapter = StubProviderAdapter(
         provider="openai",
@@ -902,6 +918,136 @@ def test_run_detail_hides_runs_owned_by_other_users(
         app,
         "GET",
         f"/api/v1/runs/{records['other_run'].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Run was not found.",
+            "details": None,
+        }
+    }
+
+
+def test_rerun_from_snapshot_uses_stored_snapshot_not_mutated_source_records(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    adapter = StubProviderAdapter(
+        provider="openai",
+        result=ProviderExecutionResult(
+            provider="openai",
+            model="gpt-4.1-mini-2025-04-14",
+            output_text="Refund approved from the stored snapshot.",
+            usage=ProviderUsage(
+                input_tokens=101,
+                output_tokens=23,
+                total_tokens=124,
+            ),
+            latency_ms=205,
+        ),
+    )
+    app = build_test_app(rsa_private_key, sqlite_database_url, adapters=[adapter])
+
+    with app.state.session_factory() as session:
+        records = seed_run_launch_records(session, app.state.encryption_service)
+        source_run = Run(
+            user_id=records["user"].id,
+            experiment_id=records["experiment"].id,
+            test_case_id=records["test_case"].id,
+            config_id=records["config"].id,
+            credential_id=records["credential"].id,
+            status="completed",
+            provider="openai",
+            model="gpt-4.1-mini-2025-04-14",
+            workflow_mode="single_shot",
+            config_snapshot_json=build_config_snapshot(
+                records["config"],
+                rendered_user_prompt=(
+                    "Reply to this ticket: Refund the customer for the duplicate charge."
+                ),
+            ),
+            input_snapshot_json=build_input_snapshot(records["test_case"]),
+            context_snapshot_json=None,
+            output_text="Original output.",
+            error_message=None,
+            usage_input_tokens=99,
+            usage_output_tokens=21,
+            usage_total_tokens=120,
+            latency_ms=180,
+            estimated_cost_usd=0.0012,
+            created_at=datetime(2025, 1, 15, 12, 0, tzinfo=UTC),
+            updated_at=datetime(2025, 1, 15, 12, 0, 2, tzinfo=UTC),
+            started_at=datetime(2025, 1, 15, 12, 0, tzinfo=UTC),
+            finished_at=datetime(2025, 1, 15, 12, 0, 2, tzinfo=UTC),
+        )
+        session.add(source_run)
+        session.flush()
+
+        records["config"].provider = "anthropic"
+        records["config"].model = "claude-3-5-sonnet"
+        records["config"].user_prompt_template = "Mutated prompt: {{input}}"
+        records["test_case"].input_text = "Changed input after the original run."
+        session.commit()
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/runs/{source_run.id}/rerun",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["id"] != str(source_run.id)
+    assert payload["status"] == "completed"
+    assert payload["provider"] == "openai"
+    assert payload["model"] == "gpt-4.1-mini-2025-04-14"
+    assert payload["config_id"] == str(records["config"].id)
+    assert payload["test_case_id"] == str(records["test_case"].id)
+    assert payload["config_snapshot"]["provider"] == "openai"
+    assert payload["config_snapshot"]["model"] == "gpt-4.1-mini"
+    assert payload["config_snapshot"]["user_prompt_template"] == "Reply to this ticket: {{input}}"
+    assert payload["config_snapshot"]["rendered_user_prompt"] == (
+        "Reply to this ticket: Refund the customer for the duplicate charge."
+    )
+    assert payload["input_snapshot"]["input_text"] == "Refund the customer for the duplicate charge."
+    assert payload["output_text"] == "Refund approved from the stored snapshot."
+
+    assert len(adapter.calls) == 1
+    assert adapter.calls[0].provider == "openai"
+    assert adapter.calls[0].model == "gpt-4.1-mini"
+    assert adapter.calls[0].user_prompt == (
+        "Reply to this ticket: Refund the customer for the duplicate charge."
+    )
+
+    with app.state.session_factory() as session:
+        persisted_runs = session.scalars(
+            select(Run).where(Run.user_id == records["user"].id).order_by(Run.created_at.asc())
+        ).all()
+
+    assert len(persisted_runs) == 2
+    rerun = persisted_runs[-1]
+    assert rerun.config_snapshot_json["provider"] == "openai"
+    assert rerun.config_snapshot_json["user_prompt_template"] == "Reply to this ticket: {{input}}"
+    assert rerun.input_snapshot_json["input_text"] == "Refund the customer for the duplicate charge."
+
+
+def test_rerun_endpoint_hides_runs_owned_by_other_users(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/runs/{records['other_run'].id}/rerun",
         headers=auth_headers(rsa_private_key),
     )
 

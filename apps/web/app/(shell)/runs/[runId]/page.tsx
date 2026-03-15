@@ -34,7 +34,8 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
         <h1>Inspect the immutable record behind one execution.</h1>
         <p>
           This page shows the source-of-truth prompts, snapshots, inputs, outputs, usage, latency,
-          cost, and failure state that were stored for the run.
+          cost, and failure state that were stored for the run, plus a rerun action that reuses the
+          stored snapshot instead of today&apos;s mutable config state.
         </p>
         <div className="cta-row">
           <Link className="cta-link secondary" href="/runs">

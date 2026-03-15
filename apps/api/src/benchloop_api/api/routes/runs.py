@@ -21,6 +21,7 @@ from benchloop_api.execution.rendering import PromptRenderingError
 from benchloop_api.execution.service import (
     RunLaunchService,
     SingleShotExecutionService,
+    StoredRunSnapshotInvalidError,
     UnsupportedExecutionWorkflowError,
 )
 from benchloop_api.execution.snapshots import ConfigSnapshot, ContextSnapshot, InputSnapshot
@@ -256,6 +257,30 @@ async def get_run(
         raise _not_found(str(exc)) from exc
 
     return _to_detail_response(run)
+
+
+@history_router.post(
+    "/{run_id}/rerun",
+    response_model=RunResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=documented_error_statuses(include_auth=True, extra_statuses=(404, 409)),
+)
+async def rerun_from_snapshot(
+    run_id: UUID,
+    current_user: CurrentUser,
+    run_launch_service: Annotated[RunLaunchService, Depends(get_run_launch_service)],
+) -> RunResponse:
+    try:
+        run = await run_launch_service.rerun_from_snapshot(
+            user_id=current_user.id,
+            run_id=run_id,
+        )
+    except UserOwnedResourceNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except (StoredRunSnapshotInvalidError, UnsupportedExecutionWorkflowError) as exc:
+        raise _conflict(str(exc)) from exc
+
+    return _to_response(run)
 
 
 @router.post(

@@ -46,6 +46,7 @@ function buildBrowserClientMock() {
     runs: {
       get: vi.fn(),
       list: vi.fn(),
+      rerun: vi.fn(),
     },
   };
 }
@@ -232,13 +233,16 @@ describe("run detail page", () => {
         get: vi.fn(async () => buildRunDetail("run_1")),
       },
     });
+    useApiClientMock.mockReturnValue(buildBrowserClientMock());
 
     render(
-      await RunDetailPage({
-        params: Promise.resolve({
-          runId: "run_1",
-        }),
-      }),
+      <AppShellProvider>
+        {await RunDetailPage({
+          params: Promise.resolve({
+            runId: "run_1",
+          }),
+        })}
+      </AppShellProvider>,
     );
 
     expect(
@@ -251,5 +255,45 @@ describe("run detail page", () => {
     expect(screen.getByText(/respond to refund the duplicate charge\./i)).toBeInTheDocument();
     expect(screen.getByText(/refunds clear within 5 business days\./i)).toBeInTheDocument();
     expect(screen.getByText(/refund confirmed within five business days\./i)).toBeInTheDocument();
+  });
+
+  it("reruns the current run from its stored snapshot", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.runs.rerun.mockResolvedValue(
+      buildRunDetail("run_2", {
+        status: "completed",
+        created_at: "2025-01-11T15:00:00Z",
+        updated_at: "2025-01-11T15:00:02Z",
+      }),
+    );
+    getApiClientMock.mockResolvedValue({
+      runs: {
+        get: vi.fn(async () => buildRunDetail("run_1")),
+      },
+    });
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        {await RunDetailPage({
+          params: Promise.resolve({
+            runId: "run_1",
+          }),
+        })}
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /rerun from snapshot/i }));
+
+    await waitFor(() => {
+      expect(browserClient.runs.rerun).toHaveBeenCalledWith("run_1");
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/rerun created from the stored snapshot\./i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("link", { name: /open rerun/i })).toHaveAttribute(
+      "href",
+      "/runs/run_2",
+    );
   });
 });
