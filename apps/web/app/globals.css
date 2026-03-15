@@ -962,6 +962,7 @@ select {
 }
 
 .run-launch-layout,
+.experiment-compare-layout,
 .run-select-list,
 .run-result-grid {
   display: grid;
@@ -996,6 +997,132 @@ select {
   opacity: 0.58;
   cursor: not-allowed;
   transform: none;
+}
+
+.compare-selection-card {
+  align-content: start;
+}
+
+.compare-run-list {
+  display: grid;
+  gap: 14px;
+}
+
+.compare-run-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(27, 36, 50, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.compare-run-card input {
+  margin-top: 4px;
+}
+
+.compare-run-card-body,
+.compare-results-shell,
+.compare-run-detail-card {
+  display: grid;
+  gap: 16px;
+}
+
+.compare-run-card-header,
+.compare-run-detail-header,
+.compare-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.compare-run-card-header h4,
+.compare-shared-input-card h3,
+.compare-run-detail-card h3,
+.compare-section h4,
+.compare-copy-grid h4,
+.compare-copy-grid h5 {
+  margin: 0;
+}
+
+.compare-run-card-header p,
+.compare-run-detail-header p,
+.compare-section-header p {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+}
+
+.compare-run-meta-grid,
+.compare-copy-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.compare-run-meta-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.compare-run-meta-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.compare-run-meta-grid dt {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+
+.compare-run-meta-grid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.compare-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.compare-shared-input-card,
+.compare-section {
+  display: grid;
+  gap: 14px;
+}
+
+.compare-copy-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.compare-copy-grid section {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.compare-shared-input-card pre,
+.compare-section pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-body), serif;
+  line-height: 1.6;
+}
+
+.compare-section {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.56);
 }
 
 .run-status-pill {

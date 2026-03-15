@@ -6,6 +6,7 @@ import {
   ApiClientError,
   type ConfigResponse,
   type ExperimentResponse,
+  type RunHistoryResponse,
   type TestCaseResponse,
 } from "@/lib/api/client";
 import { getApiClient } from "@/lib/api/server";
@@ -21,14 +22,16 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
   let bootstrapError: string | null = null;
   let configs: ConfigResponse[] = [];
   let experiment: ExperimentResponse | null = null;
+  let runs: RunHistoryResponse[] = [];
   let testCases: TestCaseResponse[] = [];
 
   try {
     const apiClient = await getApiClient();
-    [experiment, testCases, configs] = await Promise.all([
+    [experiment, testCases, configs, runs] = await Promise.all([
       apiClient.experiments.get(experimentId),
       apiClient.experiments.listTestCases(experimentId),
       apiClient.experiments.listConfigs(experimentId),
+      apiClient.runs.list({ experimentIds: [experimentId] }),
     ]);
   } catch (error) {
     if (error instanceof ApiClientError) {
@@ -45,7 +48,8 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
         <h1>Use one shell to steer the rest of the experiment workflow.</h1>
         <p>
           This route is the hub for the experiment. Overview, test cases, configs, and single-shot
-          run launch are live now, while compare stays in place for the next slices.
+          run launch are live now, and compare is ready for side-by-side inspection while manual
+          evaluation lands in the next slice.
         </p>
         <div className="cta-row">
           <Link className="cta-link secondary" href="/experiments">
@@ -65,6 +69,7 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
         <ExperimentDetailShell
           initialConfigs={configs}
           initialExperiment={experiment}
+          initialRuns={runs}
           initialTestCases={testCases}
         />
       )}

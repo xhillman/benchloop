@@ -59,7 +59,7 @@ Implemented in `B020`:
   - client workspace under `components/experiments/experiments-workspace.tsx` handles create, search, tag filtering, archive visibility, and links into detail routes
 - Experiment detail shell
   - `app/(shell)/experiments/[experimentId]/page.tsx` loads one experiment through the shared FastAPI client
-  - `components/experiments/experiment-detail-shell.tsx` provides the edit and delete flow plus tab navigation placeholders for test cases, configs, runs, and compare
+  - `components/experiments/experiment-detail-shell.tsx` provides the edit and delete flow plus tab navigation across overview, test cases, configs, runs, and compare
 - Typed experiment client contract
   - `lib/api/client.ts` now exposes experiment list, create, read, update, and delete helpers used by both server and browser callers
 - Frontend coverage
@@ -114,6 +114,14 @@ Implemented in `B028`:
   - `components/runs/run-detail.tsx` now triggers reruns against the stored snapshot and links directly to the new run record
 - Typed rerun client contract
   - `lib/api/client.ts` exposes the run rerun helper used by the detail surface
+
+Implemented in `B029`:
+
+- Experiment compare workspace
+  - `app/(shell)/experiments/[experimentId]/page.tsx` now bootstraps experiment-scoped run history alongside the experiment, test cases, and configs
+  - `components/experiments/experiment-compare-workspace.tsx` lets the user pick one test case, select two to four owned runs, and inspect their prompts, outputs, context, cost, and latency side by side
+- Compare query strategy
+  - the compare flow reuses the existing ownership-scoped run history and run detail client helpers instead of introducing a second compare-only API contract
 
 Local commands:
 

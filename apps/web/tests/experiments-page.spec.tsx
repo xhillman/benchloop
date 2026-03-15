@@ -47,6 +47,104 @@ function buildBrowserClientMock() {
       updateTestCase: vi.fn(),
       update: vi.fn(),
     },
+    runs: {
+      get: vi.fn(),
+      list: vi.fn(),
+      rerun: vi.fn(),
+    },
+  };
+}
+
+function buildRun(id: string, overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id,
+    experiment_id: "exp_1",
+    experiment_name: "Support triage",
+    test_case_id: "case_1",
+    config_id: `cfg_${id}`,
+    config_name: "Refund baseline",
+    config_version_label: "v1",
+    test_case_input_preview: "Customer asks for a refund after duplicate billing.",
+    status: "completed",
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    workflow_mode: "single_shot",
+    tags: ["refund"],
+    latency_ms: 220,
+    estimated_cost_usd: 0.0012,
+    created_at: "2025-01-10T15:00:00Z",
+    started_at: "2025-01-10T15:00:00Z",
+    finished_at: "2025-01-10T15:00:02Z",
+    ...overrides,
+  };
+}
+
+function buildRunDetail(id: string, overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id,
+    experiment_id: "exp_1",
+    experiment_name: "Support triage",
+    test_case_id: "case_1",
+    config_id: `cfg_${id}`,
+    credential_id: null,
+    status: "completed",
+    provider: "openai",
+    model: "gpt-4.1-mini",
+    workflow_mode: "single_shot",
+    config_snapshot: {
+      config_id: `cfg_${id}`,
+      name: id === "run_2" ? "Escalation variant" : "Refund baseline",
+      version_label: id === "run_2" ? "v2" : "v1",
+      description: "Prompt snapshot",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      workflow_mode: "single_shot",
+      system_prompt_template: "You are a support assistant.",
+      rendered_system_prompt: "You are a support assistant.",
+      user_prompt_template: "Reply to this ticket: {{input}}",
+      rendered_user_prompt:
+        id === "run_2"
+          ? "Reply to this ticket: Escalate the duplicate billing complaint."
+          : "Reply to this ticket: Customer asks for a refund after duplicate billing.",
+      temperature: 0.2,
+      max_output_tokens: 256,
+      top_p: 0.9,
+      context_bundle_id: null,
+      tags: ["refund"],
+      is_baseline: id !== "run_2",
+    },
+    input_snapshot: {
+      test_case_id: "case_1",
+      input_text: "Customer asks for a refund after duplicate billing.",
+      expected_output_text: "Acknowledge the issue and explain the timeline.",
+      notes: "Baseline support case.",
+      tags: ["billing", "refund"],
+    },
+    context_snapshot:
+      id === "run_2"
+        ? {
+            source: "inline",
+            bundle_id: null,
+            name: "Billing policy",
+            content_text: "Refunds clear within five business days.",
+            notes: "Ground the answer in policy.",
+          }
+        : null,
+    output_text:
+      id === "run_2"
+        ? "Escalate the complaint and confirm the refund timeline."
+        : "Refund approved. The duplicate charge will reverse within five business days.",
+    error_message: null,
+    usage_input_tokens: 42,
+    usage_output_tokens: 14,
+    usage_total_tokens: 56,
+    latency_ms: id === "run_2" ? 260 : 220,
+    estimated_cost_usd: id === "run_2" ? 0.0015 : 0.0012,
+    created_at: id === "run_2" ? "2025-01-11T16:00:00Z" : "2025-01-10T15:00:00Z",
+    started_at: id === "run_2" ? "2025-01-11T16:00:00Z" : "2025-01-10T15:00:00Z",
+    finished_at: id === "run_2" ? "2025-01-11T16:00:02Z" : "2025-01-10T15:00:02Z",
+    updated_at: id === "run_2" ? "2025-01-11T16:00:02Z" : "2025-01-10T15:00:02Z",
+    ...overrides,
   };
 }
 
@@ -228,6 +326,9 @@ describe("experiments page", () => {
           },
         ]),
       },
+      runs: {
+        list: vi.fn(async () => [buildRun("run_1")]),
+      },
     });
 
     render(
@@ -315,6 +416,7 @@ describe("experiment detail shell", () => {
             updated_at: "2025-01-02T00:00:00Z",
           }}
           initialConfigs={[]}
+          initialRuns={[]}
           initialTestCases={[
             {
               id: "case_1",
@@ -410,6 +512,7 @@ describe("experiment detail shell", () => {
             updated_at: "2025-01-02T00:00:00Z",
           }}
           initialConfigs={[]}
+          initialRuns={[]}
           initialTestCases={[
             {
               id: "case_1",
@@ -622,6 +725,7 @@ describe("experiment detail shell", () => {
               updated_at: "2025-01-02T00:00:00Z",
             },
           ]}
+          initialRuns={[]}
           initialTestCases={[]}
         />
       </AppShellProvider>,
@@ -966,6 +1070,7 @@ describe("experiment detail shell", () => {
               updated_at: "2025-01-04T00:00:00Z",
             },
           ]}
+          initialRuns={[]}
           initialTestCases={[
             {
               id: "case_1",
@@ -1010,5 +1115,76 @@ describe("experiment detail shell", () => {
     await waitFor(() => {
       expect(screen.getByText(/authentication failed for provider/i)).toBeInTheDocument();
     });
+  });
+
+  it("loads a side-by-side compare view for two runs from one test case", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.runs.get
+      .mockResolvedValueOnce(buildRunDetail("run_2"))
+      .mockResolvedValueOnce(buildRunDetail("run_1"));
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialConfigs={[]}
+          initialRuns={[
+            buildRun("run_2", {
+              config_name: "Escalation variant",
+              config_version_label: "v2",
+              latency_ms: 260,
+              estimated_cost_usd: 0.0015,
+              created_at: "2025-01-11T16:00:00Z",
+              started_at: "2025-01-11T16:00:00Z",
+              finished_at: "2025-01-11T16:00:02Z",
+            }),
+            buildRun("run_1"),
+          ]}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /compare/i }));
+    fireEvent.click(screen.getByLabelText(/select run escalation variant v2/i));
+    fireEvent.click(screen.getByLabelText(/select run refund baseline v1/i));
+    fireEvent.click(screen.getByRole("button", { name: /load compare view/i }));
+
+    await waitFor(() => {
+      expect(browserClient.runs.get).toHaveBeenCalledWith("run_2");
+      expect(browserClient.runs.get).toHaveBeenCalledWith("run_1");
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 2, name: /read the shared input once/i }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/refund approved\. the duplicate charge will reverse/i)).toBeInTheDocument();
+    expect(screen.getByText(/refunds clear within five business days\./i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open escalation variant detail/i })).toHaveAttribute(
+      "href",
+      "/runs/run_2",
+    );
   });
 });

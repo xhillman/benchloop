@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState, type FormEvent } from "react";
 
+import { ExperimentCompareWorkspace } from "@/components/experiments/experiment-compare-workspace";
 import { ExperimentConfigsWorkspace } from "@/components/experiments/experiment-configs-workspace";
 import { ExperimentRunsWorkspace } from "@/components/experiments/experiment-runs-workspace";
 import { ExperimentTestCasesWorkspace } from "@/components/experiments/experiment-test-cases-workspace";
@@ -12,6 +13,7 @@ import {
   ApiClientError,
   type ConfigResponse,
   type ExperimentResponse,
+  type RunHistoryResponse,
   type TestCaseResponse,
   type UpdateExperimentRequest,
 } from "@/lib/api/client";
@@ -19,6 +21,7 @@ import {
 type ExperimentDetailShellProps = {
   initialConfigs: ConfigResponse[];
   initialExperiment: ExperimentResponse;
+  initialRuns: RunHistoryResponse[];
   initialTestCases: TestCaseResponse[];
 };
 
@@ -30,19 +33,6 @@ type FeedbackState =
       message: string;
     }
   | null;
-
-const tabCopy: Record<
-  Exclude<DetailTab, "configs" | "overview" | "runs" | "test-cases">,
-  {
-    heading: string;
-    description: string;
-  }
-> = {
-  compare: {
-    heading: "Compare tab placeholder",
-    description: "Manual compare and evaluation will land here once run outputs exist to judge side by side.",
-  },
-};
 
 function normalizeOptionalText(value: string) {
   const trimmed = value.trim();
@@ -80,6 +70,7 @@ const tabs: { value: DetailTab; label: string }[] = [
 export function ExperimentDetailShell({
   initialConfigs,
   initialExperiment,
+  initialRuns,
   initialTestCases,
 }: ExperimentDetailShellProps) {
   const apiClient = useApiClient();
@@ -311,11 +302,13 @@ export function ExperimentDetailShell({
             initialConfigs={initialConfigs}
             initialTestCases={initialTestCases}
           />
+        ) : activeTab === "compare" ? (
+          <ExperimentCompareWorkspace initialRuns={initialRuns} />
         ) : (
           <div className="experiment-tab-panel" role="tabpanel">
-            <span className="state-badge">{tabs.find((tab) => tab.value === activeTab)?.label}</span>
-            <h3>{tabCopy[activeTab].heading}</h3>
-            <p>{tabCopy[activeTab].description}</p>
+            <span className="state-badge">Overview</span>
+            <h3>Experiment overview</h3>
+            <p>This tab lets you edit the parent experiment record and keep its tags and archive state in sync.</p>
           </div>
         )}
       </section>
