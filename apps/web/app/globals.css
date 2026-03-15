@@ -956,6 +956,24 @@ select {
   background: rgba(255, 255, 255, 0.58);
 }
 
+.experiment-test-cases-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.test-case-card {
+  gap: 18px;
+}
+
+.test-case-select {
+  align-items: flex-start;
+}
+
+.test-case-select span {
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 @media (max-width: 1080px) {
   .hero-grid,
   .section-grid,

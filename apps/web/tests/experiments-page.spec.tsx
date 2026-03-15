@@ -29,9 +29,14 @@ function buildBrowserClientMock() {
   return {
     experiments: {
       create: vi.fn(),
+      createTestCase: vi.fn(),
       delete: vi.fn(),
+      deleteTestCase: vi.fn(),
+      duplicateTestCase: vi.fn(),
       get: vi.fn(),
       list: vi.fn(),
+      listTestCases: vi.fn(),
+      updateTestCase: vi.fn(),
       update: vi.fn(),
     },
   };
@@ -180,6 +185,18 @@ describe("experiments page", () => {
           created_at: "2025-01-01T00:00:00Z",
           updated_at: "2025-01-02T00:00:00Z",
         })),
+        listTestCases: vi.fn(async () => [
+          {
+            id: "case_1",
+            experiment_id: "exp_1",
+            input_text: "Customer asks for a refund after duplicate billing.",
+            expected_output_text: "Acknowledge the issue and request account details.",
+            notes: "Baseline support case.",
+            tags: ["billing", "refund"],
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          },
+        ]),
       },
     });
 
@@ -220,6 +237,37 @@ describe("experiment detail shell", () => {
       created_at: "2025-01-01T00:00:00Z",
       updated_at: "2025-01-04T00:00:00Z",
     });
+    browserClient.experiments.createTestCase.mockResolvedValue({
+      id: "case_2",
+      experiment_id: "exp_1",
+      input_text: "Route an urgent refund request for review.",
+      expected_output_text: "Acknowledge urgency and gather account details.",
+      notes: "Escalation scenario.",
+      tags: ["refund", "urgent"],
+      created_at: "2025-01-05T00:00:00Z",
+      updated_at: "2025-01-05T00:00:00Z",
+    });
+    browserClient.experiments.updateTestCase.mockResolvedValue({
+      id: "case_1",
+      experiment_id: "exp_1",
+      input_text: "Customer asks for a refund after duplicate billing.",
+      expected_output_text: "Acknowledge the duplicate charge and gather account details.",
+      notes: "Baseline support case revised.",
+      tags: ["billing", "refund", "priority"],
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-06T00:00:00Z",
+    });
+    browserClient.experiments.duplicateTestCase.mockResolvedValue({
+      id: "case_3",
+      experiment_id: "exp_1",
+      input_text: "Customer asks for a refund after duplicate billing.",
+      expected_output_text: "Acknowledge the issue and request account details.",
+      notes: "Baseline support case.",
+      tags: ["billing", "refund"],
+      created_at: "2025-01-07T00:00:00Z",
+      updated_at: "2025-01-07T00:00:00Z",
+    });
+    browserClient.experiments.deleteTestCase.mockResolvedValue(undefined);
     browserClient.experiments.delete.mockResolvedValue(undefined);
     useApiClientMock.mockReturnValue(browserClient);
 
@@ -235,6 +283,18 @@ describe("experiment detail shell", () => {
             created_at: "2025-01-01T00:00:00Z",
             updated_at: "2025-01-02T00:00:00Z",
           }}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
         />
       </AppShellProvider>,
     );
@@ -267,6 +327,146 @@ describe("experiment detail shell", () => {
     });
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith("/experiments");
+    });
+  });
+
+  it("creates, edits, duplicates, selects, and deletes test cases from the detail tab", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.createTestCase.mockResolvedValue({
+      id: "case_2",
+      experiment_id: "exp_1",
+      input_text: "Route an urgent refund request for review.",
+      expected_output_text: "Acknowledge urgency and gather account details.",
+      notes: "Escalation scenario.",
+      tags: ["refund", "urgent"],
+      created_at: "2025-01-05T00:00:00Z",
+      updated_at: "2025-01-05T00:00:00Z",
+    });
+    browserClient.experiments.updateTestCase.mockResolvedValue({
+      id: "case_1",
+      experiment_id: "exp_1",
+      input_text: "Customer asks for a refund after duplicate billing.",
+      expected_output_text: "Acknowledge the duplicate charge and gather account details.",
+      notes: "Baseline support case revised.",
+      tags: ["billing", "refund", "priority"],
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-01-06T00:00:00Z",
+    });
+    browserClient.experiments.duplicateTestCase.mockResolvedValue({
+      id: "case_3",
+      experiment_id: "exp_1",
+      input_text: "Customer asks for a refund after duplicate billing.",
+      expected_output_text: "Acknowledge the issue and request account details.",
+      notes: "Baseline support case.",
+      tags: ["billing", "refund"],
+      created_at: "2025-01-07T00:00:00Z",
+      updated_at: "2025-01-07T00:00:00Z",
+    });
+    browserClient.experiments.deleteTestCase.mockResolvedValue(undefined);
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /test cases/i }));
+
+    expect(screen.getByText(/selection-ready list/i)).toBeInTheDocument();
+    expect(screen.getByText(/0 selected/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/input text/i), {
+      target: { value: "Route an urgent refund request for review." },
+    });
+    fireEvent.change(screen.getByLabelText(/expected output/i), {
+      target: { value: "Acknowledge urgency and gather account details." },
+    });
+    fireEvent.change(screen.getByLabelText(/notes/i), {
+      target: { value: "Escalation scenario." },
+    });
+    fireEvent.change(screen.getByLabelText(/test case tags/i), {
+      target: { value: "refund, urgent" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create test case/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.createTestCase).toHaveBeenCalledWith("exp_1", {
+        input_text: "Route an urgent refund request for review.",
+        expected_output_text: "Acknowledge urgency and gather account details.",
+        notes: "Escalation scenario.",
+        tags: ["refund", "urgent"],
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/1 selected/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /edit test case/i })[1]!);
+    fireEvent.change(screen.getByLabelText(/expected output/i), {
+      target: { value: "Acknowledge the duplicate charge and gather account details." },
+    });
+    fireEvent.change(screen.getByLabelText(/notes/i), {
+      target: { value: "Baseline support case revised." },
+    });
+    fireEvent.change(screen.getByLabelText(/test case tags/i), {
+      target: { value: "billing, refund, priority" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save test case/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.updateTestCase).toHaveBeenCalledWith("exp_1", "case_1", {
+        input_text: "Customer asks for a refund after duplicate billing.",
+        expected_output_text: "Acknowledge the duplicate charge and gather account details.",
+        notes: "Baseline support case revised.",
+        tags: ["billing", "refund", "priority"],
+      });
+    });
+
+    fireEvent.click(screen.getAllByRole("checkbox", { name: /select test case/i })[1]!);
+    await waitFor(() => {
+      expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /duplicate test case/i })[0]!);
+
+    await waitFor(() => {
+      expect(browserClient.experiments.duplicateTestCase).toHaveBeenCalledWith(
+        "exp_1",
+        expect.stringMatching(/^case_/),
+      );
+    });
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete test case/i });
+    fireEvent.click(deleteButtons[1]!);
+
+    await waitFor(() => {
+      expect(browserClient.experiments.deleteTestCase).toHaveBeenCalledWith(
+        "exp_1",
+        expect.stringMatching(/^case_/),
+      );
     });
   });
 });

@@ -3,16 +3,19 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState, type FormEvent } from "react";
 
+import { ExperimentTestCasesWorkspace } from "@/components/experiments/experiment-test-cases-workspace";
 import { useAppShellState } from "@/components/providers/app-shell-provider";
 import { useApiClient } from "@/lib/api/browser";
 import {
   ApiClientError,
   type ExperimentResponse,
+  type TestCaseResponse,
   type UpdateExperimentRequest,
 } from "@/lib/api/client";
 
 type ExperimentDetailShellProps = {
   initialExperiment: ExperimentResponse;
+  initialTestCases: TestCaseResponse[];
 };
 
 type DetailTab = "compare" | "configs" | "overview" | "runs" | "test-cases";
@@ -25,16 +28,12 @@ type FeedbackState =
   | null;
 
 const tabCopy: Record<
-  Exclude<DetailTab, "overview">,
+  Exclude<DetailTab, "overview" | "test-cases">,
   {
     heading: string;
     description: string;
   }
 > = {
-  "test-cases": {
-    heading: "Test case tab placeholder",
-    description: "B021 will attach experiment-scoped test case CRUD and duplication here.",
-  },
   configs: {
     heading: "Config tab placeholder",
     description: "B022 will add prompt and model config editing inside this experiment lane.",
@@ -82,7 +81,10 @@ const tabs: { value: DetailTab; label: string }[] = [
   { value: "compare", label: "Compare" },
 ];
 
-export function ExperimentDetailShell({ initialExperiment }: ExperimentDetailShellProps) {
+export function ExperimentDetailShell({
+  initialExperiment,
+  initialTestCases,
+}: ExperimentDetailShellProps) {
   const apiClient = useApiClient();
   const router = useRouter();
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
@@ -299,6 +301,11 @@ export function ExperimentDetailShell({ initialExperiment }: ExperimentDetailShe
               </button>
             </div>
           </form>
+        ) : activeTab === "test-cases" ? (
+          <ExperimentTestCasesWorkspace
+            experimentId={experiment.id}
+            initialTestCases={initialTestCases}
+          />
         ) : (
           <div className="experiment-tab-panel" role="tabpanel">
             <span className="state-badge">{tabs.find((tab) => tab.value === activeTab)?.label}</span>

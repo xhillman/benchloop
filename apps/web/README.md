@@ -65,6 +65,16 @@ Implemented in `B020`:
 - Frontend coverage
   - Vitest coverage exercises experiments page bootstrap, list filtering, creation flow, and detail-shell editing
 
+Implemented in `B021`:
+
+- Experiment detail test case workspace
+  - `app/(shell)/experiments/[experimentId]/page.tsx` now bootstraps experiment-scoped test cases alongside the parent experiment record
+  - `components/experiments/experiment-test-cases-workspace.tsx` handles create, edit, duplicate, delete, notes, tags, and local selection state for later run-launch work
+- Typed test case client contract
+  - `lib/api/client.ts` now exposes experiment-scoped test case CRUD and duplication helpers shared by server and browser callers
+- Frontend coverage
+  - Vitest coverage now exercises the test case client contract and the experiment detail tab workflow
+
 Local commands:
 
 - `make web-install`

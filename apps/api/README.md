@@ -140,6 +140,20 @@ Implemented in `B020`:
 - `apps/api/alembic/versions/0004_add_experiments_table.py`
   - migration that creates the `experiments` table with tags and archive state
 
+Implemented in `B021`:
+
+- `benchloop_api.test_cases`
+  - user-owned `test_cases` model plus repository and service for experiment-scoped list, create, update, duplicate, and delete flows
+  - service methods verify both the parent experiment and the nested test case through explicit `user_id` scoping
+- `/api/v1/experiments/{experiment_id}/test-cases`
+  - authenticated list and create endpoints for reusable experiment test inputs
+- `/api/v1/experiments/{experiment_id}/test-cases/{test_case_id}`
+  - authenticated update and delete endpoints for the owning user's test cases only
+- `/api/v1/experiments/{experiment_id}/test-cases/{test_case_id}/duplicate`
+  - authenticated duplication endpoint that copies test case content into a new row with a new id
+- `apps/api/alembic/versions/0005_add_test_cases_table.py`
+  - migration that creates the `test_cases` table with ownership and experiment foreign keys
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

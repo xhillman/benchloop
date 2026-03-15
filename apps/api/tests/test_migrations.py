@@ -26,6 +26,7 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert "user_settings" in inspector.get_table_names()
         assert "user_provider_credentials" in inspector.get_table_names()
         assert "experiments" in inspector.get_table_names()
+        assert "test_cases" in inspector.get_table_names()
 
         user_settings_columns = {
             column["name"]: column for column in inspector.get_columns("user_settings")
@@ -85,5 +86,24 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert experiment_columns["name"]["nullable"] is False
         assert experiment_columns["tags"]["nullable"] is False
         assert experiment_columns["is_archived"]["nullable"] is False
+
+        test_case_columns = {
+            column["name"]: column for column in inspector.get_columns("test_cases")
+        }
+        assert {
+            "id",
+            "user_id",
+            "experiment_id",
+            "input_text",
+            "expected_output_text",
+            "notes",
+            "tags",
+            "created_at",
+            "updated_at",
+        } <= set(test_case_columns)
+        assert test_case_columns["user_id"]["nullable"] is False
+        assert test_case_columns["experiment_id"]["nullable"] is False
+        assert test_case_columns["input_text"]["nullable"] is False
+        assert test_case_columns["tags"]["nullable"] is False
     finally:
         engine.dispose()

@@ -318,4 +318,123 @@ describe("api client", () => {
       }),
     );
   });
+
+  it("routes test case CRUD and duplication through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "case_2",
+            experiment_id: "exp_1",
+            input_text: "Escalate an urgent billing outage report.",
+            expected_output_text: null,
+            notes: "Fresh case",
+            tags: ["billing", "urgent"],
+            created_at: "2025-01-03T00:00:00Z",
+            updated_at: "2025-01-03T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "case_3",
+            experiment_id: "exp_1",
+            input_text: "Customer asks for a refund after duplicate billing.",
+            expected_output_text: "Acknowledge the issue and request account details.",
+            notes: "Baseline support case.",
+            tags: ["billing", "refund"],
+            created_at: "2025-01-04T00:00:00Z",
+            updated_at: "2025-01-04T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+        }),
+      );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const testCases = await client.experiments.listTestCases("exp_1");
+    const createdTestCase = await client.experiments.createTestCase("exp_1", {
+      input_text: "Escalate an urgent billing outage report.",
+      expected_output_text: null,
+      notes: "Fresh case",
+      tags: ["billing", "urgent"],
+    });
+    const duplicatedTestCase = await client.experiments.duplicateTestCase("exp_1", "case_1");
+    await client.experiments.deleteTestCase("exp_1", "case_2");
+
+    expect(testCases).toHaveLength(1);
+    expect(createdTestCase.id).toBe("case_2");
+    expect(duplicatedTestCase.id).toBe("case_3");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/experiments/exp_1/test-cases",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/experiments/exp_1/test-cases",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:8000/api/v1/experiments/exp_1/test-cases/case_1/duplicate",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:8000/api/v1/experiments/exp_1/test-cases/case_2",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
 });

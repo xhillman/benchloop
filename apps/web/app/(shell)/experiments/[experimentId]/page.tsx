@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ExperimentDetailShell } from "@/components/experiments/experiment-detail-shell";
 import { ErrorState } from "@/components/states/error-state";
-import { ApiClientError } from "@/lib/api/client";
+import { ApiClientError, type ExperimentResponse, type TestCaseResponse } from "@/lib/api/client";
 import { getApiClient } from "@/lib/api/server";
 
 type ExperimentDetailPageProps = {
@@ -14,11 +14,15 @@ type ExperimentDetailPageProps = {
 export default async function ExperimentDetailPage({ params }: ExperimentDetailPageProps) {
   const { experimentId } = await params;
   let bootstrapError: string | null = null;
-  let experiment = null;
+  let experiment: ExperimentResponse | null = null;
+  let testCases: TestCaseResponse[] = [];
 
   try {
     const apiClient = await getApiClient();
-    experiment = await apiClient.experiments.get(experimentId);
+    [experiment, testCases] = await Promise.all([
+      apiClient.experiments.get(experimentId),
+      apiClient.experiments.listTestCases(experimentId),
+    ]);
   } catch (error) {
     if (error instanceof ApiClientError) {
       bootstrapError = `${error.message} (${error.status})`;
@@ -51,7 +55,7 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
           />
         </section>
       ) : (
-        <ExperimentDetailShell initialExperiment={experiment} />
+        <ExperimentDetailShell initialExperiment={experiment} initialTestCases={testCases} />
       )}
     </>
   );

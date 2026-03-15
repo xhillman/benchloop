@@ -56,6 +56,17 @@ export type ExperimentResponse = {
   updated_at: string;
 };
 
+export type TestCaseResponse = {
+  id: string;
+  experiment_id: string;
+  input_text: string;
+  expected_output_text: string | null;
+  notes: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type ListExperimentsRequest = {
   search?: string | null;
   tags?: string[];
@@ -71,6 +82,15 @@ export type CreateExperimentRequest = {
 export type UpdateExperimentRequest = CreateExperimentRequest & {
   is_archived: boolean;
 };
+
+export type CreateTestCaseRequest = {
+  input_text: string;
+  expected_output_text: string | null;
+  notes: string | null;
+  tags: string[];
+};
+
+export type UpdateTestCaseRequest = CreateTestCaseRequest;
 
 export type CreateUserProviderCredentialRequest = {
   provider: string;
@@ -281,10 +301,37 @@ export function createApiClient({
         request<void>(`/api/v1/experiments/${experimentId}`, {
           method: "DELETE",
         }),
+      deleteTestCase: (experimentId: string, testCaseId: string) =>
+        request<void>(`/api/v1/experiments/${experimentId}/test-cases/${testCaseId}`, {
+          method: "DELETE",
+        }),
+      duplicateTestCase: (experimentId: string, testCaseId: string) =>
+        request<TestCaseResponse>(
+          `/api/v1/experiments/${experimentId}/test-cases/${testCaseId}/duplicate`,
+          {
+            method: "POST",
+          },
+        ),
       get: (experimentId: string) =>
         request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`),
+      listTestCases: (experimentId: string) =>
+        request<TestCaseResponse[]>(`/api/v1/experiments/${experimentId}/test-cases`),
       list: (params?: ListExperimentsRequest) =>
         request<ExperimentResponse[]>(buildExperimentsPath(params)),
+      createTestCase: (experimentId: string, payload: CreateTestCaseRequest) =>
+        request<TestCaseResponse>(`/api/v1/experiments/${experimentId}/test-cases`, {
+          body: payload,
+          method: "POST",
+        }),
+      updateTestCase: (
+        experimentId: string,
+        testCaseId: string,
+        payload: UpdateTestCaseRequest,
+      ) =>
+        request<TestCaseResponse>(`/api/v1/experiments/${experimentId}/test-cases/${testCaseId}`, {
+          body: payload,
+          method: "PUT",
+        }),
       update: (experimentId: string, payload: UpdateExperimentRequest) =>
         request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`, {
           body: payload,
