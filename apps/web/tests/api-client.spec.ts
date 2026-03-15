@@ -227,4 +227,95 @@ describe("api client", () => {
       }),
     );
   });
+
+  it("routes experiment CRUD and filters through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "exp_1",
+              name: "Support triage",
+              description: "Compare prompt variants for support tickets.",
+              tags: ["support", "triage"],
+              is_archived: false,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "exp_2",
+            name: "Sales follow-up",
+            description: "Warm outbound reply variants.",
+            tags: ["sales"],
+            is_archived: false,
+            created_at: "2025-01-03T00:00:00Z",
+            updated_at: "2025-01-03T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+        }),
+      );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const experiments = await client.experiments.list({
+      search: "support",
+      tags: ["triage"],
+      includeArchived: true,
+    });
+    const createdExperiment = await client.experiments.create({
+      name: "Sales follow-up",
+      description: "Warm outbound reply variants.",
+      tags: ["sales"],
+    });
+    await client.experiments.delete("exp_2");
+
+    expect(experiments).toHaveLength(1);
+    expect(createdExperiment.name).toBe("Sales follow-up");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/experiments?search=support&tag=triage&include_archived=true",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/experiments",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:8000/api/v1/experiments/exp_2",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
 });

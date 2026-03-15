@@ -46,6 +46,32 @@ export type UserProviderCredentialResponse = {
   updated_at: string;
 };
 
+export type ExperimentResponse = {
+  id: string;
+  name: string;
+  description: string | null;
+  tags: string[];
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ListExperimentsRequest = {
+  search?: string | null;
+  tags?: string[];
+  includeArchived?: boolean;
+};
+
+export type CreateExperimentRequest = {
+  name: string;
+  description: string | null;
+  tags: string[];
+};
+
+export type UpdateExperimentRequest = CreateExperimentRequest & {
+  is_archived: boolean;
+};
+
 export type CreateUserProviderCredentialRequest = {
   provider: string;
   api_key: string;
@@ -122,6 +148,32 @@ function isPlainJsonBody(value: ApiRequestOptions["body"]): value is JsonValue {
 
 function buildUrl(baseUrl: string, path: string) {
   return new URL(path, baseUrl).toString();
+}
+
+function buildExperimentsPath({
+  includeArchived = false,
+  search,
+  tags = [],
+}: ListExperimentsRequest = {}) {
+  const searchParams = new URLSearchParams();
+
+  if (search && search.trim().length > 0) {
+    searchParams.set("search", search.trim());
+  }
+
+  for (const tag of tags) {
+    const normalizedTag = tag.trim().toLowerCase();
+    if (normalizedTag.length > 0) {
+      searchParams.append("tag", normalizedTag);
+    }
+  }
+
+  if (includeArchived) {
+    searchParams.set("include_archived", "true");
+  }
+
+  const query = searchParams.toString();
+  return query.length > 0 ? `/api/v1/experiments?${query}` : "/api/v1/experiments";
 }
 
 async function readResponseBody(response: Response): Promise<unknown> {
@@ -217,6 +269,26 @@ export function createApiClient({
       getStatus: () =>
         request<HealthStatusResponse>("/api/v1/health", {
           auth: false,
+        }),
+    },
+    experiments: {
+      create: (payload: CreateExperimentRequest) =>
+        request<ExperimentResponse>("/api/v1/experiments", {
+          body: payload,
+          method: "POST",
+        }),
+      delete: (experimentId: string) =>
+        request<void>(`/api/v1/experiments/${experimentId}`, {
+          method: "DELETE",
+        }),
+      get: (experimentId: string) =>
+        request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`),
+      list: (params?: ListExperimentsRequest) =>
+        request<ExperimentResponse[]>(buildExperimentsPath(params)),
+      update: (experimentId: string, payload: UpdateExperimentRequest) =>
+        request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`, {
+          body: payload,
+          method: "PUT",
         }),
     },
     settings: {

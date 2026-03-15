@@ -10,7 +10,6 @@ vi.mock("@/lib/api/server", () => ({
 import { AppShellProvider, useAppShellState } from "@/components/providers/app-shell-provider";
 import { AppShell } from "@/components/shell/app-shell";
 import DashboardPage from "@/app/(shell)/dashboard/page";
-import ExperimentsPage from "@/app/(shell)/experiments/page";
 import RunsPage from "@/app/(shell)/runs/page";
 import SettingsPage from "@/app/(shell)/settings/page";
 
@@ -142,15 +141,9 @@ describe("shell routes", () => {
     expect(screen.getByText("user_123")).toBeInTheDocument();
   });
 
-  it("renders placeholder shells for the remaining primary sections", () => {
-    render(
-      <div>
-        <ExperimentsPage />
-        <RunsPage />
-      </div>,
-    );
+  it("renders the remaining placeholder shell route", () => {
+    render(<RunsPage />);
 
-    expect(screen.getByRole("heading", { level: 1, name: /organize the work before you execute it/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: /inspect output, latency, and reproducibility from one lane/i })).toBeInTheDocument();
   });
 

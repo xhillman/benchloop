@@ -127,6 +127,19 @@ Implemented in `B018`:
   - cross-user credential access remains closed with not-found semantics
   - credential validation errors redact submitted secret values before returning API error details
 
+Implemented in `B020`:
+
+- `benchloop_api.experiments`
+  - user-owned `experiments` model plus repository and service for list, create, read, update, and delete flows
+  - search by name, tag filtering, and archived-state handling stay behind the FastAPI contract instead of leaking into the web app
+- `/api/v1/experiments`
+  - authenticated list and create endpoints for the current user's experiments
+  - supports `search`, repeated `tag`, and `include_archived` query parameters
+- `/api/v1/experiments/{experiment_id}`
+  - authenticated read, update, and delete endpoints scoped to the owning user only
+- `apps/api/alembic/versions/0004_add_experiments_table.py`
+  - migration that creates the `experiments` table with tags and archive state
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

@@ -52,6 +52,19 @@ Implemented in `B017`:
 - Frontend coverage
   - Vitest coverage exercises the settings page bootstrap and the core settings mutation flows against the shared client contract
 
+Implemented in `B020`:
+
+- Experiments index
+  - server-rendered bootstrap under `app/(shell)/experiments/page.tsx` reads the caller's experiment list from FastAPI before hydrating the client workspace
+  - client workspace under `components/experiments/experiments-workspace.tsx` handles create, search, tag filtering, archive visibility, and links into detail routes
+- Experiment detail shell
+  - `app/(shell)/experiments/[experimentId]/page.tsx` loads one experiment through the shared FastAPI client
+  - `components/experiments/experiment-detail-shell.tsx` provides the edit and delete flow plus tab navigation placeholders for test cases, configs, runs, and compare
+- Typed experiment client contract
+  - `lib/api/client.ts` now exposes experiment list, create, read, update, and delete helpers used by both server and browser callers
+- Frontend coverage
+  - Vitest coverage exercises experiments page bootstrap, list filtering, creation flow, and detail-shell editing
+
 Local commands:
 
 - `make web-install`

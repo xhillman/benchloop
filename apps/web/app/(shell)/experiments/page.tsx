@@ -1,24 +1,46 @@
-import { EmptyState } from "@/components/states/empty-state";
+import { ExperimentsWorkspace } from "@/components/experiments/experiments-workspace";
+import { ErrorState } from "@/components/states/error-state";
+import { ApiClientError, type ExperimentResponse } from "@/lib/api/client";
+import { getApiClient } from "@/lib/api/server";
 
-export default function ExperimentsPage() {
+const emptyExperiments: ExperimentResponse[] = [];
+
+export default async function ExperimentsPage() {
+  let initialExperiments = emptyExperiments;
+  let bootstrapError: string | null = null;
+
+  try {
+    const apiClient = await getApiClient();
+    initialExperiments = await apiClient.experiments.list();
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      bootstrapError = `${error.message} (${error.status})`;
+    } else {
+      throw error;
+    }
+  }
+
   return (
     <>
       <section className="shell-panel page-header">
         <p className="eyebrow">Experiments</p>
         <h1>Organize the work before you execute it.</h1>
         <p>
-          This route will house experiment CRUD, test cases, and config surfaces. For B006 it
-          exists as a stable shell destination with reusable empty-state treatment.
+          Experiments are the top-level container for prompts, configs, test cases, runs, and later
+          compare workflows. This page now keeps creation and filtering on one API-backed surface.
         </p>
       </section>
 
-      <section className="state-card">
-        <EmptyState
-          label="Experiments"
-          title="No experiments are defined yet"
-          description="C006 through C008 will fill this route with the core lab entities. The app shell is already in place so those contracts can stay feature-focused."
-        />
-      </section>
+      {bootstrapError ? (
+        <section className="state-card">
+          <ErrorState
+            message={bootstrapError}
+            title="The experiments surface could not load its FastAPI bootstrap data"
+          />
+        </section>
+      ) : (
+        <ExperimentsWorkspace initialExperiments={initialExperiments} />
+      )}
     </>
   );
 }
