@@ -25,6 +25,7 @@ const clerkState = vi.hoisted(() => ({
 vi.mock("@clerk/nextjs", () => ({
   ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
+    getToken: vi.fn(async () => null),
     isSignedIn: clerkState.signedIn,
   }),
   UserButton: () => <button type="button">User menu</button>,
@@ -146,12 +147,33 @@ describe("shell routes", () => {
       <div>
         <ExperimentsPage />
         <RunsPage />
-        <SettingsPage />
       </div>,
     );
 
     expect(screen.getByRole("heading", { level: 1, name: /organize the work before you execute it/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: /inspect output, latency, and reproducibility from one lane/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: /keep credentials and defaults behind one predictable surface/i })).toBeInTheDocument();
+  });
+
+  it("renders the settings page shell with API-backed defaults", async () => {
+    getApiClientMock.mockResolvedValue({
+      settings: {
+        get: vi.fn(async () => ({
+          default_provider: "openai",
+          default_model: "gpt-4.1-mini",
+          timezone: "UTC",
+        })),
+        listCredentials: vi.fn(async () => []),
+      },
+    });
+
+    render(<AppShellProvider>{await SettingsPage()}</AppShellProvider>);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /configure defaults and provider access/i,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("gpt-4.1-mini")).toBeInTheDocument();
   });
 });

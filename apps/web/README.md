@@ -42,6 +42,16 @@ Implemented in `B011`:
 - First live API-backed shell surface
   - dashboard bootstrap reads FastAPI health plus the authenticated subject through the shared client instead of placeholder-only copy
 
+Implemented in `B017`:
+
+- Settings workspace
+  - server-rendered settings bootstrap under `app/(shell)/settings/page.tsx` reads FastAPI defaults and masked credential metadata before the client hydrates
+  - client-side workspace under `components/settings` manages default provider or model updates plus credential add, replace, delete, and validate flows through the shared API client
+- Typed settings client contract
+  - `lib/api/client.ts` now exposes settings and provider credential request helpers for both server and browser callers
+- Frontend coverage
+  - Vitest coverage exercises the settings page bootstrap and the core settings mutation flows against the shared client contract
+
 Local commands:
 
 - `make web-install`

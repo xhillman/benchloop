@@ -23,6 +23,40 @@ export type AuthMeResponse = {
   external_user_id: string;
 };
 
+export type UserSettingsResponse = {
+  default_provider: string | null;
+  default_model: string | null;
+  timezone: string | null;
+};
+
+export type UpdateUserSettingsRequest = {
+  default_provider: string | null;
+  default_model: string | null;
+  timezone: string | null;
+};
+
+export type UserProviderCredentialResponse = {
+  id: string;
+  provider: string;
+  key_label: string | null;
+  masked_api_key: string;
+  validation_status: string;
+  last_validated_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateUserProviderCredentialRequest = {
+  provider: string;
+  api_key: string;
+  key_label: string | null;
+};
+
+export type ReplaceUserProviderCredentialRequest = {
+  api_key: string;
+  key_label: string | null;
+};
+
 export type ApiRequestOptions = Omit<RequestInit, "body" | "headers" | "method"> & {
   auth?: boolean;
   body?: BodyInit | JsonValue | null;
@@ -184,6 +218,37 @@ export function createApiClient({
         request<HealthStatusResponse>("/api/v1/health", {
           auth: false,
         }),
+    },
+    settings: {
+      createCredential: (payload: CreateUserProviderCredentialRequest) =>
+        request<UserProviderCredentialResponse>("/api/v1/settings/credentials", {
+          body: payload,
+          method: "POST",
+        }),
+      deleteCredential: (credentialId: string) =>
+        request<void>(`/api/v1/settings/credentials/${credentialId}`, {
+          method: "DELETE",
+        }),
+      get: () => request<UserSettingsResponse>("/api/v1/settings"),
+      listCredentials: () =>
+        request<UserProviderCredentialResponse[]>("/api/v1/settings/credentials"),
+      replaceCredential: (credentialId: string, payload: ReplaceUserProviderCredentialRequest) =>
+        request<UserProviderCredentialResponse>(`/api/v1/settings/credentials/${credentialId}`, {
+          body: payload,
+          method: "PUT",
+        }),
+      update: (payload: UpdateUserSettingsRequest) =>
+        request<UserSettingsResponse>("/api/v1/settings", {
+          body: payload,
+          method: "PUT",
+        }),
+      validateCredential: (credentialId: string) =>
+        request<UserProviderCredentialResponse>(
+          `/api/v1/settings/credentials/${credentialId}/validate`,
+          {
+            method: "POST",
+          },
+        ),
     },
     request,
   };
