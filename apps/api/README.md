@@ -181,6 +181,19 @@ Implemented in `B023`:
 - `apps/api/tests/test_execution_snapshots.py`
   - unit coverage for deterministic rendering, workflow validation, and snapshot immutability guarantees
 
+Implemented in `B024`:
+
+- `benchloop_api.execution.adapters`
+  - normalized single-shot provider adapter contract plus OpenAI and Anthropic HTTP adapters
+  - shared execution result shape for output text, token usage, latency, and optional cost metadata
+- `benchloop_api.execution.service:SingleShotExecutionService`
+  - resolves the caller's owned provider credential, decrypts it only for the provider call, and persists a completed or failed run outcome
+- `benchloop_api.runs`
+  - `runs` table model plus lifecycle service for pending, running, completed, and failed execution attempts
+  - stores immutable config and input snapshot JSON alongside normalized execution metadata for later history/detail work
+- `apps/api/alembic/versions/0007_add_runs_table.py`
+  - migration that creates the `runs` table used by the execution pipeline foundation
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

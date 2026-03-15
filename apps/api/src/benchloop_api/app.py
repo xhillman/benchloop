@@ -10,6 +10,7 @@ from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.config import get_settings
 from benchloop_api.db.session import create_database_engine, create_session_factory
 from benchloop_api.errors import register_exception_handlers
+from benchloop_api.execution.adapters import create_provider_adapter_registry
 from benchloop_api.settings.encryption import create_encryption_service
 from benchloop_api.settings.validation import create_provider_credential_validator
 
@@ -33,6 +34,7 @@ def create_app(settings_overrides: Mapping[str, Any] | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     app.state.auth_verifier = ClerkJwtVerifier(settings)
     app.state.encryption_service = create_encryption_service(settings)
+    app.state.provider_adapter_registry = create_provider_adapter_registry()
     app.state.provider_credential_validator = create_provider_credential_validator()
     app.add_middleware(
         CORSMiddleware,
