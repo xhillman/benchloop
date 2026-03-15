@@ -170,6 +170,17 @@ Implemented in `B022`:
 - `apps/api/alembic/versions/0006_add_configs_table.py`
   - migration that creates the `configs` table with prompt, model, generation params, tags, and baseline state
 
+Implemented in `B023`:
+
+- `benchloop_api.execution.rendering`
+  - deterministic prompt interpolation for the supported `{{input}}`, `{{context}}`, and `{{intermediate}}` variables
+  - validates unsupported template variables, missing runtime values, and workflow-mode/template mismatches before execution starts
+- `benchloop_api.execution.snapshots`
+  - immutable Pydantic snapshot models for config, input, and optional context runtime state
+  - snapshot bundle builder that captures rendered prompt text and config parameters from the current config and test case without relying on later mutable rows
+- `apps/api/tests/test_execution_snapshots.py`
+  - unit coverage for deterministic rendering, workflow validation, and snapshot immutability guarantees
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`
