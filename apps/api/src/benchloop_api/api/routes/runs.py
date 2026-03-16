@@ -19,6 +19,8 @@ from benchloop_api.execution.adapters import (
 )
 from benchloop_api.execution.rendering import PromptRenderingError
 from benchloop_api.execution.service import (
+    InlineExecutionContext,
+    MissingExecutionContextError,
     RunLaunchService,
     SingleShotExecutionService,
     StoredRunSnapshotInvalidError,
@@ -175,14 +177,37 @@ class RunHistoryResponse(ApiResponseModel):
     evaluation: RunEvaluationResponse | None = None
 
 
+class InlineContextRequest(ApiRequestModel):
+    name: str | None = None
+    content_text: str = Field(min_length=1)
+    notes: str | None = None
+
+    @field_validator("name", "notes", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+
 class LaunchRunRequest(ApiRequestModel):
     test_case_id: UUID
     config_id: UUID
+    context_bundle_id: UUID | None = None
+    inline_context: InlineContextRequest | None = None
+
+    @model_validator(mode="after")
+    def ensure_single_context_source(self):
+        if self.context_bundle_id is not None and self.inline_context is not None:
+            raise ValueError("Provide either context_bundle_id or inline_context, not both.")
+        return self
 
 
 class LaunchBatchRunsRequest(ApiRequestModel):
     test_case_id: UUID
     config_ids: list[UUID] = Field(min_length=1)
+    context_bundle_id: UUID | None = None
+    inline_context: InlineContextRequest | None = None
 
     @field_validator("config_ids")
     @classmethod
@@ -191,6 +216,12 @@ class LaunchBatchRunsRequest(ApiRequestModel):
         if len(unique_ids) != len(value):
             raise ValueError("Config ids must be unique.")
         return unique_ids
+
+    @model_validator(mode="after")
+    def ensure_single_context_source(self):
+        if self.context_bundle_id is not None and self.inline_context is not None:
+            raise ValueError("Provide either context_bundle_id or inline_context, not both.")
+        return self
 
 
 def _to_response(run, *, evaluation=None) -> RunResponse:
@@ -381,7 +412,9 @@ async def get_run_evaluation(
     if evaluation is None:
         raise _not_found("Run evaluation was not found.")
 
-    return _to_evaluation_response(evaluation)
+    response = _to_evaluation_response(evaluation)
+    assert response is not None
+    return response
 
 
 @history_router.put(
@@ -407,7 +440,9 @@ async def put_run_evaluation(
     except UserOwnedResourceNotFoundError as exc:
         raise _not_found(str(exc)) from exc
 
-    return _to_evaluation_response(evaluation)
+    response = _to_evaluation_response(evaluation)
+    assert response is not None
+    return response
 
 
 @history_router.delete(
@@ -472,10 +507,20 @@ async def launch_run(
             experiment_id=experiment_id,
             test_case_id=payload.test_case_id,
             config_id=payload.config_id,
+            context_bundle_id=payload.context_bundle_id,
+            inline_context=(
+                InlineExecutionContext(**payload.inline_context.model_dump())
+                if payload.inline_context is not None
+                else None
+            ),
         )
     except UserOwnedResourceNotFoundError as exc:
         raise _not_found(str(exc)) from exc
-    except (PromptRenderingError, UnsupportedExecutionWorkflowError) as exc:
+    except (
+        MissingExecutionContextError,
+        PromptRenderingError,
+        UnsupportedExecutionWorkflowError,
+    ) as exc:
         raise _conflict(str(exc)) from exc
 
     return _to_response(run)
@@ -498,10 +543,20 @@ async def launch_batch_runs(
             experiment_id=experiment_id,
             test_case_id=payload.test_case_id,
             config_ids=payload.config_ids,
+            context_bundle_id=payload.context_bundle_id,
+            inline_context=(
+                InlineExecutionContext(**payload.inline_context.model_dump())
+                if payload.inline_context is not None
+                else None
+            ),
         )
     except UserOwnedResourceNotFoundError as exc:
         raise _not_found(str(exc)) from exc
-    except (PromptRenderingError, UnsupportedExecutionWorkflowError) as exc:
+    except (
+        MissingExecutionContextError,
+        PromptRenderingError,
+        UnsupportedExecutionWorkflowError,
+    ) as exc:
         raise _conflict(str(exc)) from exc
 
     return [_to_response(run) for run in runs]

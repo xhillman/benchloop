@@ -1236,10 +1236,16 @@ describe("api client", () => {
     const launchedRun = await client.experiments.launchRun("exp_1", {
       test_case_id: "case_1",
       config_id: "cfg_1",
+      inline_context: {
+        name: "Policy note",
+        content_text: "Use the billing policy excerpt.",
+        notes: null,
+      },
     });
     const launchedBatch = await client.experiments.launchBatchRuns("exp_1", {
       test_case_id: "case_1",
       config_ids: ["cfg_1", "cfg_2"],
+      context_bundle_id: "ctx_1",
     });
 
     expect(launchedRun.id).toBe("run_1");
@@ -1264,12 +1270,18 @@ describe("api client", () => {
       JSON.stringify({
         test_case_id: "case_1",
         config_id: "cfg_1",
+        inline_context: {
+          name: "Policy note",
+          content_text: "Use the billing policy excerpt.",
+          notes: null,
+        },
       }),
     );
     expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
       JSON.stringify({
         test_case_id: "case_1",
         config_ids: ["cfg_1", "cfg_2"],
+        context_bundle_id: "ctx_1",
       }),
     );
   });

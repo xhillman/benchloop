@@ -247,6 +247,15 @@ Implemented in `B031`:
 - `apps/api/alembic/versions/0009_add_context_bundles_table.py`
   - migration that creates `context_bundles` and adds the config-level foreign key for default bundle attachment
 
+Implemented in `B032`:
+
+- `/api/v1/experiments/{experiment_id}/runs` and `/api/v1/experiments/{experiment_id}/runs/batch`
+  - launch requests now accept either a saved `context_bundle_id` override or an inline one-off context payload for `prompt_plus_context` execution
+- `benchloop_api.execution.service:RunLaunchService`
+  - resolves config-default or ad hoc context into immutable run snapshots before provider execution and fails closed when prompt-plus-context launches have no resolved context
+- `benchloop_api.execution.service:SingleShotExecutionService`
+  - the same provider execution path now supports both `single_shot` and `prompt_plus_context` snapshots, including reruns from stored context-aware history
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

@@ -144,6 +144,14 @@ Implemented in `B031`:
 - Typed context bundle client contract
   - `lib/api/client.ts` now exposes experiment-scoped context bundle CRUD helpers shared by server and browser callers
 
+Implemented in `B032`:
+
+- Prompt-plus-context run launch workspace
+  - `components/experiments/experiment-runs-workspace.tsx` now launches both single-shot and prompt-plus-context configs
+  - users can keep each config's default bundle, swap in another saved bundle for one launch, or provide inline context that is snapshotted for history
+- Typed launch contract updates
+  - `lib/api/client.ts` now exposes launch payload fields for `context_bundle_id` and inline context overrides so the web app stays aligned with the FastAPI contract
+
 Local commands:
 
 - `make web-install`

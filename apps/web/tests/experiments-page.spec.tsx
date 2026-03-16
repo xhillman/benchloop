@@ -1420,6 +1420,161 @@ describe("experiment detail shell", () => {
     );
   });
 
+  it("launches prompt-plus-context runs with an inline context override", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.launchRun.mockResolvedValue({
+      id: "run_ctx_1",
+      experiment_id: "exp_1",
+      test_case_id: "case_1",
+      config_id: "cfg_ctx_1",
+      credential_id: "cred_1",
+      status: "completed",
+      provider: "openai",
+      model: "gpt-4.1-mini-2025-04-14",
+      workflow_mode: "prompt_plus_context",
+      config_snapshot: {
+        config_id: "cfg_ctx_1",
+        name: "Grounded answer",
+        version_label: "v3",
+        description: "Uses context before replying.",
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        workflow_mode: "prompt_plus_context",
+        system_prompt_template: "You are a grounded support assistant.",
+        rendered_system_prompt: "You are a grounded support assistant.",
+        user_prompt_template: "Reply to this ticket: {{input}}\n\nContext: {{context}}",
+        rendered_user_prompt:
+          "Reply to this ticket: Customer asks for a refund after duplicate billing.\n\nContext: Duplicate-charge refunds clear within five business days.",
+        temperature: 0.2,
+        max_output_tokens: 350,
+        top_p: 0.9,
+        context_bundle_id: null,
+        tags: ["grounded"],
+        is_baseline: false,
+      },
+      input_snapshot: {
+        test_case_id: "case_1",
+        input_text: "Customer asks for a refund after duplicate billing.",
+        expected_output_text: "Acknowledge the issue and request account details.",
+        notes: "Baseline support case.",
+        tags: ["billing", "refund"],
+      },
+      context_snapshot: {
+        source: "inline",
+        bundle_id: null,
+        name: "Billing policy",
+        content_text: "Duplicate-charge refunds clear within five business days.",
+        notes: "Temporary support grounding.",
+      },
+      output_text: "Refund approved within five business days.",
+      error_message: null,
+      usage_input_tokens: 112,
+      usage_output_tokens: 24,
+      usage_total_tokens: 136,
+      latency_ms: 240,
+      estimated_cost_usd: null,
+      started_at: "2025-01-06T00:00:00Z",
+      finished_at: "2025-01-06T00:00:01Z",
+      created_at: "2025-01-06T00:00:00Z",
+      updated_at: "2025-01-06T00:00:01Z",
+    });
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialConfigs={[
+            {
+              id: "cfg_ctx_1",
+              experiment_id: "exp_1",
+              name: "Grounded answer",
+              version_label: "v3",
+              description: "Uses context before replying.",
+              provider: "openai",
+              model: "gpt-4.1-mini",
+              workflow_mode: "prompt_plus_context",
+              system_prompt: "You are a grounded support assistant.",
+              user_prompt_template: "Reply to this ticket: {{input}}\n\nContext: {{context}}",
+              temperature: 0.2,
+              max_output_tokens: 350,
+              top_p: 0.9,
+              context_bundle_id: null,
+              tags: ["grounded"],
+              is_baseline: false,
+              created_at: "2025-01-05T00:00:00Z",
+              updated_at: "2025-01-05T00:00:00Z",
+            },
+          ]}
+          initialContextBundles={[
+            {
+              id: "ctx_1",
+              experiment_id: "exp_1",
+              name: "Billing policy",
+              content_text: "Duplicate-charge refunds clear within five business days.",
+              notes: "Use for billing tickets.",
+              created_at: "2025-01-04T00:00:00Z",
+              updated_at: "2025-01-04T00:00:00Z",
+            },
+          ]}
+          initialRuns={[]}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /runs/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /customer asks for a refund/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /grounded answer v3/i }));
+    fireEvent.change(screen.getByLabelText(/context source/i), {
+      target: { value: "inline" },
+    });
+    fireEvent.change(screen.getByLabelText(/inline context name/i), {
+      target: { value: "Billing policy" },
+    });
+    fireEvent.change(screen.getByLabelText(/inline context content/i), {
+      target: { value: "Duplicate-charge refunds clear within five business days." },
+    });
+    fireEvent.change(screen.getByLabelText(/inline context notes/i), {
+      target: { value: "Temporary support grounding." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /run selected config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.launchRun).toHaveBeenCalledWith("exp_1", {
+        test_case_id: "case_1",
+        config_id: "cfg_ctx_1",
+        inline_context: {
+          name: "Billing policy",
+          content_text: "Duplicate-charge refunds clear within five business days.",
+          notes: "Temporary support grounding.",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/refund approved within five business days/i)).toBeInTheDocument();
+    });
+  });
+
   it("saves a manual evaluation from compare and updates the compare surfaces", async () => {
     const browserClient = buildBrowserClientMock();
     browserClient.runs.get

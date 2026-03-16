@@ -326,6 +326,7 @@ export function ExperimentDetailShell({
         ) : activeTab === "runs" ? (
           <ExperimentRunsWorkspace
             experimentId={experiment.id}
+            initialContextBundles={contextBundles}
             initialConfigs={configs}
             initialTestCases={initialTestCases}
           />

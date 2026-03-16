@@ -3,8 +3,6 @@ import json
 from collections.abc import Generator, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
-from uuid import UUID
-
 import httpx
 import jwt
 import pytest
@@ -14,6 +12,7 @@ from sqlalchemy import select
 from benchloop_api.app import create_app
 from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.configs.models import Config
+from benchloop_api.context_bundles.models import ContextBundle
 from benchloop_api.db.base import Base
 from benchloop_api.execution.adapters import (
     ProviderAdapterRegistry,
@@ -1292,7 +1291,159 @@ def test_rerun_endpoint_hides_runs_owned_by_other_users(
     }
 
 
-def test_launch_routes_reject_non_single_shot_configs(
+def test_launch_routes_execute_prompt_plus_context_configs_with_saved_bundle(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    adapter = StubProviderAdapter(
+        provider="openai",
+        result=ProviderExecutionResult(
+            provider="openai",
+            model="gpt-4.1-mini-2025-04-14",
+            output_text="Refund approved using the saved billing policy.",
+            usage=ProviderUsage(
+                input_tokens=120,
+                output_tokens=26,
+                total_tokens=146,
+            ),
+            latency_ms=215,
+        ),
+    )
+    app = build_test_app(rsa_private_key, sqlite_database_url, adapters=[adapter])
+
+    with app.state.session_factory() as session:
+        records = seed_run_launch_records(
+            session,
+            app.state.encryption_service,
+            workflow_mode="prompt_plus_context",
+        )
+        context_bundle = ContextBundle(
+            user_id=records["user"].id,
+            experiment_id=records["experiment"].id,
+            name="Billing policy",
+            content_text="Duplicate-charge refunds clear within five business days.",
+            notes="Use the billing policy wording.",
+        )
+        session.add(context_bundle)
+        session.flush()
+        records["config"].context_bundle_id = context_bundle.id
+        records["config"].user_prompt_template = "Reply to this ticket: {{input}}\n\nContext: {{context}}"
+        session.commit()
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/experiments/{records['experiment'].id}/runs",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "test_case_id": str(records["test_case"].id),
+            "config_id": str(records["config"].id),
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "completed"
+    assert payload["workflow_mode"] == "prompt_plus_context"
+    assert payload["config_snapshot"]["rendered_user_prompt"] == (
+        "Reply to this ticket: Refund the customer for the duplicate charge.\n\n"
+        "Context: Duplicate-charge refunds clear within five business days."
+    )
+    assert payload["context_snapshot"] == {
+        "source": "bundle",
+        "bundle_id": str(context_bundle.id),
+        "name": "Billing policy",
+        "content_text": "Duplicate-charge refunds clear within five business days.",
+        "notes": "Use the billing policy wording.",
+    }
+    assert payload["output_text"] == "Refund approved using the saved billing policy."
+
+    assert len(adapter.calls) == 1
+    assert adapter.calls[0].user_prompt == (
+        "Reply to this ticket: Refund the customer for the duplicate charge.\n\n"
+        "Context: Duplicate-charge refunds clear within five business days."
+    )
+
+    with app.state.session_factory() as session:
+        persisted_runs = session.scalars(select(Run)).all()
+
+    assert len(persisted_runs) == 1
+    assert persisted_runs[0].context_snapshot_json == {
+        "source": "bundle",
+        "bundle_id": str(context_bundle.id),
+        "name": "Billing policy",
+        "content_text": "Duplicate-charge refunds clear within five business days.",
+        "notes": "Use the billing policy wording.",
+    }
+
+
+def test_launch_routes_accept_inline_context_overrides(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    adapter = StubProviderAdapter(
+        provider="openai",
+        result=ProviderExecutionResult(
+            provider="openai",
+            model="gpt-4.1-mini-2025-04-14",
+            output_text="Refund approved using the inline escalation policy.",
+            usage=ProviderUsage(
+                input_tokens=118,
+                output_tokens=28,
+                total_tokens=146,
+            ),
+            latency_ms=220,
+        ),
+    )
+    app = build_test_app(rsa_private_key, sqlite_database_url, adapters=[adapter])
+
+    with app.state.session_factory() as session:
+        records = seed_run_launch_records(
+            session,
+            app.state.encryption_service,
+            workflow_mode="prompt_plus_context",
+        )
+        records["config"].user_prompt_template = "Reply to this ticket: {{input}}\n\nContext: {{context}}"
+        session.commit()
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/experiments/{records['experiment'].id}/runs",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "test_case_id": str(records["test_case"].id),
+            "config_id": str(records["config"].id),
+            "inline_context": {
+                "name": "Escalation guidance",
+                "content_text": "Escalate any duplicate-charge case older than 30 days before promising a refund.",
+                "notes": "Temporary queue policy.",
+            },
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["context_snapshot"] == {
+        "source": "inline",
+        "bundle_id": None,
+        "name": "Escalation guidance",
+        "content_text": "Escalate any duplicate-charge case older than 30 days before promising a refund.",
+        "notes": "Temporary queue policy.",
+    }
+    assert payload["config_snapshot"]["rendered_user_prompt"] == (
+        "Reply to this ticket: Refund the customer for the duplicate charge.\n\n"
+        "Context: Escalate any duplicate-charge case older than 30 days before promising a refund."
+    )
+
+    assert len(adapter.calls) == 1
+    assert adapter.calls[0].user_prompt == (
+        "Reply to this ticket: Refund the customer for the duplicate charge.\n\n"
+        "Context: Escalate any duplicate-charge case older than 30 days before promising a refund."
+    )
+
+
+def test_launch_routes_fail_when_prompt_plus_context_has_no_resolved_context(
     rsa_private_key,
     sqlite_database_url,
 ) -> None:
@@ -1303,6 +1454,49 @@ def test_launch_routes_reject_non_single_shot_configs(
             session,
             app.state.encryption_service,
             workflow_mode="prompt_plus_context",
+        )
+        records["config"].user_prompt_template = "Reply to this ticket: {{input}}\n\nContext: {{context}}"
+        session.commit()
+
+    response = request(
+        app,
+        "POST",
+        f"/api/v1/experiments/{records['experiment'].id}/runs",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "test_case_id": str(records["test_case"].id),
+            "config_id": str(records["config"].id),
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": {
+            "code": "http_error",
+            "message": (
+                f"Config '{records['config'].id}' requires a saved or inline context before execution."
+            ),
+            "details": None,
+        }
+    }
+
+    with app.state.session_factory() as session:
+        persisted_runs = session.scalars(select(Run)).all()
+
+    assert persisted_runs == []
+
+
+def test_launch_routes_reject_non_supported_execution_workflows(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_launch_records(
+            session,
+            app.state.encryption_service,
+            workflow_mode="two_step_chain",
         )
         session.commit()
 
@@ -1321,7 +1515,7 @@ def test_launch_routes_reject_non_single_shot_configs(
     assert response.json() == {
         "error": {
             "code": "http_error",
-            "message": "Config workflow mode 'prompt_plus_context' is not supported by single-shot execution.",
+            "message": "Config workflow mode 'two_step_chain' is not supported by single-shot execution.",
             "details": None,
         }
     }

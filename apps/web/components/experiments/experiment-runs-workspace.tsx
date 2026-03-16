@@ -8,12 +8,14 @@ import { useApiClient } from "@/lib/api/browser";
 import {
   ApiClientError,
   type ConfigResponse,
+  type ContextBundleResponse,
   type RunResponse,
   type TestCaseResponse,
 } from "@/lib/api/client";
 
 type ExperimentRunsWorkspaceProps = {
   experimentId: string;
+  initialContextBundles: ContextBundleResponse[];
   initialConfigs: ConfigResponse[];
   initialTestCases: TestCaseResponse[];
 };
@@ -96,8 +98,20 @@ function sortConfigs(configs: ConfigResponse[]) {
   });
 }
 
+function sortContextBundles(contextBundles: ContextBundleResponse[]) {
+  return [...contextBundles].sort((left, right) => {
+    const updatedComparison = right.updated_at.localeCompare(left.updated_at);
+    if (updatedComparison !== 0) {
+      return updatedComparison;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
 export function ExperimentRunsWorkspace({
   experimentId,
+  initialContextBundles,
   initialConfigs,
   initialTestCases,
 }: ExperimentRunsWorkspaceProps) {
@@ -105,13 +119,26 @@ export function ExperimentRunsWorkspace({
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
 
   const testCases = sortTestCases(initialTestCases);
+  const contextBundles = sortContextBundles(initialContextBundles);
   const launchableConfigs = sortConfigs(
-    initialConfigs.filter((config) => config.workflow_mode === "single_shot"),
+    initialConfigs.filter(
+      (config) =>
+        config.workflow_mode === "prompt_plus_context" || config.workflow_mode === "single_shot",
+    ),
   );
   const blockedConfigCount = initialConfigs.length - launchableConfigs.length;
 
   const [selectedTestCaseId, setSelectedTestCaseId] = useState<string | null>(testCases[0]?.id ?? null);
   const [selectedConfigIds, setSelectedConfigIds] = useState<Set<string>>(() => new Set());
+  const [contextSource, setContextSource] = useState<"config_default" | "inline" | "saved_bundle">(
+    "config_default",
+  );
+  const [selectedContextBundleId, setSelectedContextBundleId] = useState<string>(
+    contextBundles[0]?.id ?? "",
+  );
+  const [inlineContextName, setInlineContextName] = useState("");
+  const [inlineContextContent, setInlineContextContent] = useState("");
+  const [inlineContextNotes, setInlineContextNotes] = useState("");
   const [latestRuns, setLatestRuns] = useState<RunResponse[]>([]);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
@@ -173,13 +200,77 @@ export function ExperimentRunsWorkspace({
       return;
     }
 
-    const configIds = launchableConfigs
-      .map((config) => config.id)
-      .filter((configId) => selectedConfigIds.has(configId));
+    const selectedConfigs = launchableConfigs.filter((config) => selectedConfigIds.has(config.id));
+    const configIds = selectedConfigs.map((config) => config.id);
+    const promptPlusContextConfigs = selectedConfigs.filter(
+      (config) => config.workflow_mode === "prompt_plus_context",
+    );
+    const singleShotConfigs = selectedConfigs.filter((config) => config.workflow_mode === "single_shot");
 
     if (configIds.length === 0) {
       return;
     }
+
+    if (contextSource !== "config_default" && singleShotConfigs.length > 0) {
+      setFeedback({
+        tone: "error",
+        message:
+          "Ad hoc context can only be used when every selected config uses prompt + context mode.",
+      });
+      return;
+    }
+
+    if (
+      promptPlusContextConfigs.length > 0 &&
+      contextSource === "config_default" &&
+      promptPlusContextConfigs.some((config) => config.context_bundle_id === null)
+    ) {
+      setFeedback({
+        tone: "error",
+        message:
+          "Selected prompt + context configs need a default context bundle or an ad hoc override.",
+      });
+      return;
+    }
+
+    if (
+      promptPlusContextConfigs.length > 0 &&
+      contextSource === "saved_bundle" &&
+      selectedContextBundleId.length === 0
+    ) {
+      setFeedback({
+        tone: "error",
+        message: "Choose a saved context bundle before launching these runs.",
+      });
+      return;
+    }
+
+    if (
+      promptPlusContextConfigs.length > 0 &&
+      contextSource === "inline" &&
+      inlineContextContent.trim().length === 0
+    ) {
+      setFeedback({
+        tone: "error",
+        message: "Inline context content is required before launching these runs.",
+      });
+      return;
+    }
+
+    const contextPayload =
+      promptPlusContextConfigs.length === 0
+        ? {}
+        : contextSource === "saved_bundle"
+          ? { context_bundle_id: selectedContextBundleId }
+          : contextSource === "inline"
+            ? {
+                inline_context: {
+                  name: inlineContextName.trim().length > 0 ? inlineContextName.trim() : null,
+                  content_text: inlineContextContent.trim(),
+                  notes: inlineContextNotes.trim().length > 0 ? inlineContextNotes.trim() : null,
+                },
+              }
+            : {};
 
     if (configIds.length === 1) {
       const [configId] = configIds;
@@ -189,6 +280,7 @@ export function ExperimentRunsWorkspace({
           await apiClient.experiments.launchRun(experimentId, {
             test_case_id: selectedTestCaseId,
             config_id: configId,
+            ...contextPayload,
           }),
         ],
       });
@@ -201,11 +293,16 @@ export function ExperimentRunsWorkspace({
         apiClient.experiments.launchBatchRuns(experimentId, {
           test_case_id: selectedTestCaseId,
           config_ids: configIds,
+          ...contextPayload,
         }),
     });
   }
 
   const selectedConfigCount = selectedConfigIds.size;
+  const selectedConfigs = launchableConfigs.filter((config) => selectedConfigIds.has(config.id));
+  const selectedPromptPlusContextCount = selectedConfigs.filter(
+    (config) => config.workflow_mode === "prompt_plus_context",
+  ).length;
   const launchButtonLabel =
     selectedConfigCount === 1 ? "Run selected config" : "Run selected configs";
 
@@ -230,13 +327,13 @@ export function ExperimentRunsWorkspace({
         <article className="shell-panel experiments-summary-card">
           <p className="section-kicker">Launchable configs</p>
           <h3>{launchableConfigs.length}</h3>
-          <p className="status-copy">B025 only executes single-shot configs from this workspace.</p>
+          <p className="status-copy">Single-shot and prompt + context configs can launch here.</p>
         </article>
 
         <article className="shell-panel experiments-summary-card">
           <p className="section-kicker">Blocked for later</p>
           <h3>{blockedConfigCount}</h3>
-          <p className="status-copy">Context and chain configs stay editable until their run modes land.</p>
+          <p className="status-copy">Two-step configs stay editable until their run mode lands.</p>
         </article>
       </section>
 
@@ -337,8 +434,21 @@ export function ExperimentRunsWorkspace({
                         </dd>
                       </div>
                       <div>
+                        <dt>Workflow</dt>
+                        <dd>{config.workflow_mode.replace(/_/g, " ")}</dd>
+                      </div>
+                      <div>
                         <dt>Prompt preview</dt>
                         <dd>{buildPreview(config.user_prompt_template)}</dd>
+                      </div>
+                      <div>
+                        <dt>Default context</dt>
+                        <dd>
+                          {config.context_bundle_id
+                            ? (contextBundles.find((contextBundle) => contextBundle.id === config.context_bundle_id)
+                                ?.name ?? "Attached bundle")
+                            : "None"}
+                        </dd>
                       </div>
                     </dl>
                   </label>
@@ -363,6 +473,99 @@ export function ExperimentRunsWorkspace({
             </>
           )}
         </article>
+      </section>
+
+      <section className="shell-panel experiments-card">
+        <div className="settings-card-header">
+          <div>
+            <p className="section-kicker">Context injection</p>
+            <h3>Use each config default or override it at launch time.</h3>
+          </div>
+          <p className="experiments-list-meta">
+            {selectedPromptPlusContextCount > 0
+              ? `${selectedPromptPlusContextCount} selected config${selectedPromptPlusContextCount === 1 ? "" : "s"} require prompt + context rules.`
+              : "Select a prompt + context config to apply launch-time context controls."}
+          </p>
+        </div>
+
+        <div className="settings-form">
+          <label className="settings-field">
+            <span>Context source</span>
+            <select
+              aria-label="Context source"
+              name="context_source"
+              onChange={(event) =>
+                setContextSource(
+                  event.target.value as "config_default" | "inline" | "saved_bundle",
+                )
+              }
+              value={contextSource}
+            >
+              <option value="config_default">Use config default</option>
+              <option value="saved_bundle">Use saved bundle</option>
+              <option value="inline">Use inline context</option>
+            </select>
+          </label>
+
+          {contextSource === "saved_bundle" ? (
+            <label className="settings-field">
+              <span>Saved context bundle</span>
+              <select
+                aria-label="Saved context bundle"
+                name="selected_context_bundle_id"
+                onChange={(event) => setSelectedContextBundleId(event.target.value)}
+                value={selectedContextBundleId}
+              >
+                <option value="">Select a saved bundle</option>
+                {contextBundles.map((contextBundle) => (
+                  <option key={contextBundle.id} value={contextBundle.id}>
+                    {contextBundle.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {contextSource === "inline" ? (
+            <>
+              <label className="settings-field">
+                <span>Inline context name</span>
+                <input
+                  aria-label="Inline context name"
+                  name="inline_context_name"
+                  onChange={(event) => setInlineContextName(event.target.value)}
+                  value={inlineContextName}
+                />
+              </label>
+
+              <label className="settings-field">
+                <span>Inline context content</span>
+                <textarea
+                  aria-label="Inline context content"
+                  name="inline_context_content"
+                  onChange={(event) => setInlineContextContent(event.target.value)}
+                  rows={6}
+                  value={inlineContextContent}
+                />
+              </label>
+
+              <label className="settings-field">
+                <span>Inline context notes</span>
+                <textarea
+                  aria-label="Inline context notes"
+                  name="inline_context_notes"
+                  onChange={(event) => setInlineContextNotes(event.target.value)}
+                  rows={3}
+                  value={inlineContextNotes}
+                />
+              </label>
+            </>
+          ) : null}
+
+          <p className="run-helper-copy">
+            Config defaults keep historical runs stable, while saved-bundle and inline overrides are snapshotted for this launch only.
+          </p>
+        </div>
       </section>
 
       {latestRuns.length > 0 ? (

@@ -256,14 +256,24 @@ export type CreateConfigRequest = {
 
 export type UpdateConfigRequest = CreateConfigRequest;
 
+export type InlineContextRequest = {
+  name: string | null;
+  content_text: string;
+  notes: string | null;
+};
+
 export type LaunchRunRequest = {
   test_case_id: string;
   config_id: string;
+  context_bundle_id?: string | null;
+  inline_context?: InlineContextRequest | null;
 };
 
 export type LaunchBatchRunsRequest = {
   test_case_id: string;
   config_ids: string[];
+  context_bundle_id?: string | null;
+  inline_context?: InlineContextRequest | null;
 };
 
 export type ListRunsRequest = {

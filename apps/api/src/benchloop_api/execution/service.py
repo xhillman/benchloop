@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -5,14 +6,14 @@ from sqlalchemy.orm import Session
 
 from benchloop_api.configs.models import Config
 from benchloop_api.configs.repository import ConfigRepository
+from benchloop_api.context_bundles.repository import ContextBundleRepository
 from benchloop_api.execution.adapters import (
     ProviderAdapterRegistry,
     ProviderExecutionError,
     SingleShotProviderRequest,
 )
 from benchloop_api.execution.rendering import PromptRenderingError
-from benchloop_api.execution.snapshots import RunSnapshotBundle
-from benchloop_api.execution.snapshots import build_run_snapshot_bundle
+from benchloop_api.execution.snapshots import ContextSnapshot, RunSnapshotBundle, build_run_snapshot_bundle
 from benchloop_api.experiments.repository import ExperimentRepository
 from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
 from benchloop_api.runs.models import Run
@@ -36,6 +37,21 @@ class StoredRunSnapshotInvalidError(ValueError):
     def __init__(self, *, run_id: UUID) -> None:
         self.run_id = run_id
         super().__init__(f"Stored snapshot for run '{run_id}' is invalid and cannot be rerun.")
+
+
+@dataclass(frozen=True)
+class InlineExecutionContext:
+    content_text: str
+    name: str | None = None
+    notes: str | None = None
+
+
+class MissingExecutionContextError(ValueError):
+    def __init__(self, *, config_id: UUID) -> None:
+        self.config_id = config_id
+        super().__init__(
+            f"Config '{config_id}' requires a saved or inline context before execution."
+        )
 
 
 class SingleShotExecutionService:
@@ -173,6 +189,7 @@ class RunLaunchService:
         self._execution_service = execution_service
         self._experiment_repository = ExperimentRepository(session)
         self._config_repository = ConfigRepository(session)
+        self._context_bundle_repository = ContextBundleRepository(session)
         self._run_repository = RunRepository(session)
         self._test_case_repository = TestCaseRepository(session)
 
@@ -183,6 +200,8 @@ class RunLaunchService:
         experiment_id: UUID,
         test_case_id: UUID,
         config_id: UUID,
+        context_bundle_id: UUID | None = None,
+        inline_context: InlineExecutionContext | None = None,
     ) -> Run:
         self._get_experiment_or_raise(user_id=user_id, experiment_id=experiment_id)
         test_case = self._get_test_case_or_raise(
@@ -196,7 +215,14 @@ class RunLaunchService:
             config_id=config_id,
         )
         self._ensure_single_shot(config=config)
-        snapshot_bundle = self._build_snapshot_bundle(config=config, test_case=test_case)
+        snapshot_bundle = self._build_snapshot_bundle(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            config=config,
+            test_case=test_case,
+            context_bundle_id=context_bundle_id,
+            inline_context=inline_context,
+        )
         return await self._execution_service.execute_single_shot(
             user_id=user_id,
             experiment_id=experiment_id,
@@ -212,6 +238,8 @@ class RunLaunchService:
         experiment_id: UUID,
         test_case_id: UUID,
         config_ids: list[UUID],
+        context_bundle_id: UUID | None = None,
+        inline_context: InlineExecutionContext | None = None,
     ) -> list[Run]:
         runs: list[Run] = []
         for config_id in config_ids:
@@ -221,6 +249,8 @@ class RunLaunchService:
                     experiment_id=experiment_id,
                     test_case_id=test_case_id,
                     config_id=config_id,
+                    context_bundle_id=context_bundle_id,
+                    inline_context=inline_context,
                 )
             )
         return runs
@@ -245,13 +275,25 @@ class RunLaunchService:
     def _build_snapshot_bundle(
         self,
         *,
+        user_id: UUID,
+        experiment_id: UUID,
         config: Config,
         test_case: TestCase,
+        context_bundle_id: UUID | None = None,
+        inline_context: InlineExecutionContext | None = None,
     ) -> RunSnapshotBundle:
+        context_snapshot = self._resolve_context_snapshot(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            config=config,
+            context_bundle_id=context_bundle_id,
+            inline_context=inline_context,
+        )
         try:
             return build_run_snapshot_bundle(
                 config=config,
                 test_case=test_case,
+                context_snapshot=context_snapshot,
             )
         except PromptRenderingError:
             raise
@@ -260,8 +302,54 @@ class RunLaunchService:
         self._ensure_single_shot_workflow_mode(workflow_mode=config.workflow_mode)
 
     def _ensure_single_shot_workflow_mode(self, *, workflow_mode: str) -> None:
-        if workflow_mode != "single_shot":
+        if workflow_mode not in {"prompt_plus_context", "single_shot"}:
             raise UnsupportedExecutionWorkflowError(workflow_mode=workflow_mode)
+
+    def _resolve_context_snapshot(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        config: Config,
+        context_bundle_id: UUID | None,
+        inline_context: InlineExecutionContext | None,
+    ) -> ContextSnapshot | None:
+        if config.workflow_mode != "prompt_plus_context":
+            if context_bundle_id is not None or inline_context is not None:
+                raise UnsupportedExecutionWorkflowError(workflow_mode=config.workflow_mode)
+            return None
+
+        if inline_context is not None:
+            return ContextSnapshot(
+                source="inline",
+                name=inline_context.name,
+                content_text=inline_context.content_text,
+                notes=inline_context.notes,
+            )
+
+        resolved_context_bundle_id = context_bundle_id or config.context_bundle_id
+        if resolved_context_bundle_id is None:
+            raise MissingExecutionContextError(config_id=config.id)
+
+        context_bundle = self._context_bundle_repository.get_owned_for_experiment(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            context_bundle_id=resolved_context_bundle_id,
+        )
+        if context_bundle is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Context bundle",
+                resource_id=resolved_context_bundle_id,
+                user_id=user_id,
+            )
+
+        return ContextSnapshot(
+            source="bundle",
+            bundle_id=context_bundle.id,
+            name=context_bundle.name,
+            content_text=context_bundle.content_text,
+            notes=context_bundle.notes,
+        )
 
     def _build_snapshot_bundle_from_run(self, *, run: Run) -> RunSnapshotBundle:
         try:

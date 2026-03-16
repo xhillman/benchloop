@@ -2,8 +2,6 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
-
 import httpx
 import jwt
 import pytest
