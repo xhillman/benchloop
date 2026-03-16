@@ -4,6 +4,13 @@ import Link from "next/link";
 import { startTransition, useState } from "react";
 
 import { useAppShellState } from "@/components/providers/app-shell-provider";
+import { RunEvaluationEditor } from "@/components/runs/run-evaluation-editor";
+import {
+  formatDimensionScores,
+  formatEvaluationNotes,
+  formatEvaluationScore,
+  formatEvaluationSignal,
+} from "@/components/runs/run-evaluation-utils";
 import { EmptyState } from "@/components/states/empty-state";
 import { useApiClient } from "@/lib/api/browser";
 import {
@@ -117,7 +124,8 @@ export function ExperimentCompareWorkspace({
 }: ExperimentCompareWorkspaceProps) {
   const apiClient = useApiClient();
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
-  const compareGroups = groupRunsByTestCase(initialRuns);
+  const [runs, setRuns] = useState(initialRuns);
+  const compareGroups = groupRunsByTestCase(runs);
   const [selectedTestCaseId, setSelectedTestCaseId] = useState<string | null>(
     compareGroups[0]?.testCaseId ?? null,
   );
@@ -132,6 +140,17 @@ export function ExperimentCompareWorkspace({
     ? activeGroup.runs.filter((run) => selectedRunIds.has(run.id))
     : [];
   const firstComparedRun = comparedRuns[0] ?? null;
+
+  function handleEvaluationChange(runId: string, evaluation: RunDetailResponse["evaluation"]) {
+    startTransition(() => {
+      setComparedRuns((current) =>
+        current.map((run) => (run.id === runId ? { ...run, evaluation } : run)),
+      );
+      setRuns((current) =>
+        current.map((run) => (run.id === runId ? { ...run, evaluation } : run)),
+      );
+    });
+  }
 
   function handleSelectTestCase(testCaseId: string) {
     setFeedback(null);
@@ -257,7 +276,7 @@ export function ExperimentCompareWorkspace({
 
         <article className="shell-panel experiments-summary-card">
           <p className="section-kicker">Runs in scope</p>
-          <h3>{initialRuns.length}</h3>
+          <h3>{runs.length}</h3>
           <p className="status-copy">The compare tab only uses runs already owned by the signed-in user.</p>
         </article>
 
@@ -342,8 +361,16 @@ export function ExperimentCompareWorkspace({
                         <dd>{formatCurrency(run.estimated_cost_usd)}</dd>
                       </div>
                       <div>
+                        <dt>Score</dt>
+                        <dd>{formatEvaluationScore(run.evaluation)}</dd>
+                      </div>
+                      <div>
                         <dt>Tags</dt>
                         <dd>{formatTags(run.tags)}</dd>
+                      </div>
+                      <div>
+                        <dt>Notes</dt>
+                        <dd>{formatEvaluationNotes(run.evaluation)}</dd>
                       </div>
                     </dl>
                   </div>
@@ -418,7 +445,7 @@ export function ExperimentCompareWorkspace({
               <h2>Read the shared input once, then judge each run against the same snapshot.</h2>
             </div>
             <p className="experiments-list-meta">
-              Manual scoring lands in B030; this slice focuses on trustworthy compare context.
+              Save manual evaluation directly on each compared run without leaving the workflow.
             </p>
           </div>
 
@@ -479,8 +506,16 @@ export function ExperimentCompareWorkspace({
                     <dd>{formatCurrency(run.estimated_cost_usd)}</dd>
                   </div>
                   <div>
+                    <dt>Score</dt>
+                    <dd>{formatEvaluationScore(run.evaluation)}</dd>
+                  </div>
+                  <div>
                     <dt>Tags</dt>
                     <dd>{formatTags(run.config_snapshot.tags)}</dd>
+                  </div>
+                  <div>
+                    <dt>Signal</dt>
+                    <dd>{formatEvaluationSignal(run.evaluation)}</dd>
                   </div>
                 </dl>
 
@@ -547,6 +582,12 @@ export function ExperimentCompareWorkspace({
                     <p className="run-helper-copy">No additional context snapshot was stored for this run.</p>
                   )}
                 </div>
+
+                <RunEvaluationEditor
+                  initialEvaluation={run.evaluation}
+                  onChange={(evaluation) => handleEvaluationChange(run.id, evaluation)}
+                  runId={run.id}
+                />
               </article>
             ))}
           </div>

@@ -427,6 +427,18 @@ describe("api client", () => {
           usage_total_tokens: 56,
           latency_ms: 240,
           estimated_cost_usd: 0.0014,
+          evaluation: {
+            run_id: "run_1",
+            overall_score: 4,
+            dimension_scores: {
+              accuracy: 5,
+              clarity: 4,
+            },
+            thumbs_signal: "up",
+            notes: "Strong billing response.",
+            created_at: "2025-01-10T15:05:00Z",
+            updated_at: "2025-01-10T15:06:00Z",
+          },
           started_at: "2025-01-10T15:00:00Z",
           finished_at: "2025-01-10T15:00:02Z",
           created_at: "2025-01-10T15:00:00Z",
@@ -448,6 +460,7 @@ describe("api client", () => {
     const run = await client.runs.get("run_1");
 
     expect(run.experiment_name).toBe("Support triage");
+    expect(run.evaluation?.overall_score).toBe(4);
     expect(run.config_snapshot.rendered_user_prompt).toBe("Respond to Customer asks for a refund.");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8000/api/v1/runs/run_1",
@@ -530,6 +543,76 @@ describe("api client", () => {
       "http://localhost:8000/api/v1/runs/run_1/rerun",
       expect.objectContaining({
         method: "POST",
+      }),
+    );
+  });
+
+  it("routes run evaluation updates and deletes through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            run_id: "run_1",
+            overall_score: 5,
+            dimension_scores: {
+              accuracy: 5,
+              clarity: 5,
+            },
+            thumbs_signal: "up",
+            notes: "Most trustworthy response.",
+            created_at: "2025-01-10T15:05:00Z",
+            updated_at: "2025-01-10T15:06:00Z",
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const evaluation = await client.runs.updateEvaluation("run_1", {
+      overall_score: 5,
+      dimension_scores: {
+        accuracy: 5,
+        clarity: 5,
+      },
+      thumbs_signal: "up",
+      notes: "Most trustworthy response.",
+    });
+    await client.runs.deleteEvaluation("run_1");
+
+    expect(evaluation.overall_score).toBe(5);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/runs/run_1/evaluation",
+      expect.objectContaining({
+        method: "PUT",
+      }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        overall_score: 5,
+        dimension_scores: {
+          accuracy: 5,
+          clarity: 5,
+        },
+        thumbs_signal: "up",
+        notes: "Most trustworthy response.",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/runs/run_1/evaluation",
+      expect.objectContaining({
+        method: "DELETE",
       }),
     );
   });

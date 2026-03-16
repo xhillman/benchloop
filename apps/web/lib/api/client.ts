@@ -124,6 +124,23 @@ export type RunContextSnapshot = {
   notes: string | null;
 };
 
+export type RunEvaluationResponse = {
+  run_id: string;
+  overall_score: number | null;
+  dimension_scores: Record<string, number>;
+  thumbs_signal: "down" | "up" | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UpdateRunEvaluationRequest = {
+  overall_score: number | null;
+  dimension_scores: Record<string, number>;
+  thumbs_signal: "down" | "up" | null;
+  notes: string | null;
+};
+
 export type RunResponse = {
   id: string;
   experiment_id: string;
@@ -146,6 +163,7 @@ export type RunResponse = {
   estimated_cost_usd: number | null;
   started_at: string | null;
   finished_at: string | null;
+  evaluation: RunEvaluationResponse | null;
   created_at: string;
   updated_at: string;
 };
@@ -173,6 +191,7 @@ export type RunHistoryResponse = {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  evaluation: RunEvaluationResponse | null;
 };
 
 export type ListExperimentsRequest = {
@@ -600,11 +619,20 @@ export function createApiClient({
         }),
     },
     runs: {
+      deleteEvaluation: (runId: string) =>
+        request<void>(`/api/v1/runs/${runId}/evaluation`, {
+          method: "DELETE",
+        }),
       get: (runId: string) => request<RunDetailResponse>(`/api/v1/runs/${runId}`),
       list: (params?: ListRunsRequest) => request<RunHistoryResponse[]>(buildRunsPath(params)),
       rerun: (runId: string) =>
         request<RunResponse>(`/api/v1/runs/${runId}/rerun`, {
           method: "POST",
+        }),
+      updateEvaluation: (runId: string, payload: UpdateRunEvaluationRequest) =>
+        request<RunEvaluationResponse>(`/api/v1/runs/${runId}/evaluation`, {
+          body: payload,
+          method: "PUT",
         }),
     },
     settings: {

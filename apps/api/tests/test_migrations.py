@@ -28,6 +28,7 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert "experiments" in inspector.get_table_names()
         assert "test_cases" in inspector.get_table_names()
         assert "runs" in inspector.get_table_names()
+        assert "run_evaluations" in inspector.get_table_names()
 
         user_settings_columns = {
             column["name"]: column for column in inspector.get_columns("user_settings")
@@ -146,5 +147,23 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert run_columns["workflow_mode"]["nullable"] is False
         assert run_columns["config_snapshot_json"]["nullable"] is False
         assert run_columns["input_snapshot_json"]["nullable"] is False
+
+        evaluation_columns = {
+            column["name"]: column for column in inspector.get_columns("run_evaluations")
+        }
+        assert {
+            "id",
+            "user_id",
+            "run_id",
+            "overall_score",
+            "dimension_scores_json",
+            "thumbs_signal",
+            "notes",
+            "created_at",
+            "updated_at",
+        } <= set(evaluation_columns)
+        assert evaluation_columns["user_id"]["nullable"] is False
+        assert evaluation_columns["run_id"]["nullable"] is False
+        assert evaluation_columns["dimension_scores_json"]["nullable"] is False
     finally:
         engine.dispose()

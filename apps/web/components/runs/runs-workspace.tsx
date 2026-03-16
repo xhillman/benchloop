@@ -4,6 +4,11 @@ import Link from "next/link";
 import { startTransition, useState } from "react";
 
 import { useAppShellState } from "@/components/providers/app-shell-provider";
+import {
+  formatEvaluationNotes,
+  formatEvaluationScore,
+  formatEvaluationSignal,
+} from "@/components/runs/run-evaluation-utils";
 import { EmptyState } from "@/components/states/empty-state";
 import { useApiClient } from "@/lib/api/browser";
 import {
@@ -415,6 +420,7 @@ export function RunsWorkspace({ initialExperiments, initialRuns }: RunsWorkspace
                   <th scope="col">Config</th>
                   <th scope="col">Model</th>
                   <th scope="col">Status</th>
+                  <th scope="col">Score</th>
                   <th scope="col">Latency</th>
                   <th scope="col">Cost</th>
                 </tr>
@@ -456,6 +462,12 @@ export function RunsWorkspace({ initialExperiments, initialRuns }: RunsWorkspace
                       <span className={`run-status-pill run-status-pill-${run.status}`}>
                         {formatStatus(run.status)}
                       </span>
+                    </td>
+                    <td>
+                      <div className="runs-table-primary">{formatEvaluationScore(run.evaluation)}</div>
+                      <div className="runs-table-secondary">
+                        {run.evaluation ? formatEvaluationSignal(run.evaluation) : formatEvaluationNotes(null)}
+                      </div>
                     </td>
                     <td>{run.latency_ms === null ? "Unavailable" : `${run.latency_ms} ms`}</td>
                     <td>{formatCurrency(run.estimated_cost_usd)}</td>

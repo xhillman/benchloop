@@ -48,8 +48,8 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
         <h1>Use one shell to steer the rest of the experiment workflow.</h1>
         <p>
           This route is the hub for the experiment. Overview, test cases, configs, and single-shot
-          run launch are live now, and compare is ready for side-by-side inspection while manual
-          evaluation lands in the next slice.
+          run launch are live now, and compare plus manual evaluation stay on the same API-backed
+          surface.
         </p>
         <div className="cta-row">
           <Link className="cta-link secondary" href="/experiments">

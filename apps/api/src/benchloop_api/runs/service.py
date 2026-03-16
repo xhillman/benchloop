@@ -11,8 +11,8 @@ from benchloop_api.execution.adapters import ProviderExecutionResult
 from benchloop_api.execution.snapshots import RunSnapshotBundle
 from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
 from benchloop_api.experiments.repository import ExperimentRepository
-from benchloop_api.runs.models import Run
-from benchloop_api.runs.repository import RunRepository
+from benchloop_api.runs.models import Run, RunEvaluation
+from benchloop_api.runs.repository import RunEvaluationRepository, RunRepository
 from benchloop_api.test_cases.models import TestCase
 
 RUN_STATUS_PENDING = "pending"
@@ -58,12 +58,14 @@ class RunHistoryEntry:
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    evaluation: RunEvaluation | None = None
 
 
 @dataclass(frozen=True)
 class RunDetailEntry:
     run: Run
     experiment_name: str | None
+    evaluation: RunEvaluation | None = None
 
 
 class RunService:
@@ -164,6 +166,7 @@ class RunService:
 class RunHistoryService:
     def __init__(self, session: Session) -> None:
         self._repository = RunRepository(session)
+        self._evaluation_repository = RunEvaluationRepository(session)
         self._experiment_repository = ExperimentRepository(session)
 
     def list(
@@ -182,8 +185,16 @@ class RunHistoryService:
                 include_archived=True,
             )
         }
+        evaluations_by_run_id = self._evaluation_repository.list_for_runs(
+            user_id=user_id,
+            run_ids=[run.id for run in sorted_runs],
+        )
         return [
-            self._to_history_entry(run=run, experiment_name=experiment_names.get(run.experiment_id))
+            self._to_history_entry(
+                run=run,
+                experiment_name=experiment_names.get(run.experiment_id),
+                evaluation=evaluations_by_run_id.get(run.id),
+            )
             for run in sorted_runs
         ]
 
@@ -203,6 +214,10 @@ class RunHistoryService:
         return RunDetailEntry(
             run=run,
             experiment_name=experiment.name if experiment is not None else None,
+            evaluation=self._evaluation_repository.get_for_run(
+                user_id=user_id,
+                run_id=run.id,
+            ),
         )
 
     def _matches_filters(self, *, run: Run, filters: RunHistoryFilters) -> bool:
@@ -264,7 +279,12 @@ class RunHistoryService:
         return _coerce_utc_datetime(run.created_at)
 
     @staticmethod
-    def _to_history_entry(*, run: Run, experiment_name: str | None) -> RunHistoryEntry:
+    def _to_history_entry(
+        *,
+        run: Run,
+        experiment_name: str | None,
+        evaluation: RunEvaluation | None,
+    ) -> RunHistoryEntry:
         return RunHistoryEntry(
             id=run.id,
             experiment_id=run.experiment_id,
@@ -286,7 +306,73 @@ class RunHistoryService:
             created_at=run.created_at,
             started_at=run.started_at,
             finished_at=run.finished_at,
+            evaluation=evaluation,
         )
+
+
+class RunEvaluationService:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._run_repository = RunRepository(session)
+        self._evaluation_repository = RunEvaluationRepository(session)
+
+    def get(self, *, user_id: UUID, run_id: UUID) -> RunEvaluation | None:
+        self._get_run_or_raise(user_id=user_id, run_id=run_id)
+        return self._evaluation_repository.get_for_run(user_id=user_id, run_id=run_id)
+
+    def upsert(
+        self,
+        *,
+        user_id: UUID,
+        run_id: UUID,
+        overall_score: int | None,
+        dimension_scores: dict[str, int],
+        thumbs_signal: str | None,
+        notes: str | None,
+    ) -> RunEvaluation:
+        self._get_run_or_raise(user_id=user_id, run_id=run_id)
+        evaluation = self._evaluation_repository.get_for_run(user_id=user_id, run_id=run_id)
+        if evaluation is None:
+            evaluation = self._evaluation_repository.add(
+                RunEvaluation(
+                    user_id=user_id,
+                    run_id=run_id,
+                    overall_score=overall_score,
+                    dimension_scores=dict(dimension_scores),
+                    thumbs_signal=thumbs_signal,
+                    notes=notes,
+                )
+            )
+        else:
+            evaluation.overall_score = overall_score
+            evaluation.dimension_scores = dict(dimension_scores)
+            evaluation.thumbs_signal = thumbs_signal
+            evaluation.notes = notes
+
+        self._session.flush()
+        return evaluation
+
+    def delete(self, *, user_id: UUID, run_id: UUID) -> None:
+        self._get_run_or_raise(user_id=user_id, run_id=run_id)
+        deleted = self._evaluation_repository.delete_for_run(user_id=user_id, run_id=run_id)
+        if not deleted:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Run evaluation",
+                resource_id=run_id,
+                user_id=user_id,
+            )
+
+        self._session.flush()
+
+    def _get_run_or_raise(self, *, user_id: UUID, run_id: UUID) -> Run:
+        run = self._run_repository.get_owned(user_id=user_id, resource_id=run_id)
+        if run is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Run",
+                resource_id=run_id,
+                user_id=user_id,
+            )
+        return run
 
 
 def _merge_snapshot_tags(*, run: Run) -> list[str]:

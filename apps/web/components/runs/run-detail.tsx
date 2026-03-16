@@ -4,6 +4,13 @@ import Link from "next/link";
 import { startTransition, useState } from "react";
 
 import { useAppShellState } from "@/components/providers/app-shell-provider";
+import { RunEvaluationEditor } from "@/components/runs/run-evaluation-editor";
+import {
+  formatDimensionScores,
+  formatEvaluationNotes,
+  formatEvaluationScore,
+  formatEvaluationSignal,
+} from "@/components/runs/run-evaluation-utils";
 import { useApiClient } from "@/lib/api/browser";
 import { ApiClientError, type RunDetailResponse, type RunResponse } from "@/lib/api/client";
 
@@ -66,6 +73,7 @@ type RunDetailProps = {
 export function RunDetail({ run }: RunDetailProps) {
   const apiClient = useApiClient();
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
+  const [runDetail, setRunDetail] = useState(run);
   const [activeAction, setActiveAction] = useState<"rerun" | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [latestRerun, setLatestRerun] = useState<RunResponse | null>(null);
@@ -77,7 +85,7 @@ export function RunDetail({ run }: RunDetailProps) {
     startLoading();
 
     try {
-      const rerun = await apiClient.runs.rerun(run.id);
+      const rerun = await apiClient.runs.rerun(runDetail.id);
 
       startTransition(() => {
         setLatestRerun(rerun);
@@ -159,21 +167,21 @@ export function RunDetail({ run }: RunDetailProps) {
       <section className="three-column-grid runs-summary-grid">
         <article className="shell-panel runs-summary-card">
           <p className="section-kicker">Run status</p>
-          <h3>{formatStatus(run.status)}</h3>
+          <h3>{formatStatus(runDetail.status)}</h3>
           <p className="status-copy">
-            {run.experiment_name ?? "Deleted experiment"} via {formatProvider(run.provider)}
+            {runDetail.experiment_name ?? "Deleted experiment"} via {formatProvider(runDetail.provider)}
           </p>
         </article>
 
         <article className="shell-panel runs-summary-card">
           <p className="section-kicker">Latency</p>
-          <h3>{run.latency_ms === null ? "Unavailable" : `${run.latency_ms} ms`}</h3>
+          <h3>{runDetail.latency_ms === null ? "Unavailable" : `${runDetail.latency_ms} ms`}</h3>
           <p className="status-copy">Recorded from the provider response for this immutable run.</p>
         </article>
 
         <article className="shell-panel runs-summary-card">
           <p className="section-kicker">Estimated cost</p>
-          <h3>{formatCurrency(run.estimated_cost_usd)}</h3>
+          <h3>{formatCurrency(runDetail.estimated_cost_usd)}</h3>
           <p className="status-copy">Stored with the run so later config edits cannot rewrite history.</p>
         </article>
       </section>
@@ -198,39 +206,39 @@ export function RunDetail({ run }: RunDetailProps) {
           <dl className="run-detail-meta-grid">
             <div>
               <dt>Experiment</dt>
-              <dd>{run.experiment_name ?? "Deleted experiment"}</dd>
+              <dd>{runDetail.experiment_name ?? "Deleted experiment"}</dd>
             </div>
             <div>
               <dt>Workflow mode</dt>
-              <dd>{run.workflow_mode}</dd>
+              <dd>{runDetail.workflow_mode}</dd>
             </div>
             <div>
               <dt>Provider model</dt>
               <dd>
-                {formatProvider(run.provider)} / {run.model}
+                {formatProvider(runDetail.provider)} / {runDetail.model}
               </dd>
             </div>
             <div>
               <dt>Config snapshot</dt>
               <dd>
-                {run.config_snapshot.name} {run.config_snapshot.version_label}
+                {runDetail.config_snapshot.name} {runDetail.config_snapshot.version_label}
               </dd>
             </div>
             <div>
               <dt>Created</dt>
-              <dd>{formatTimestamp(run.created_at)}</dd>
+              <dd>{formatTimestamp(runDetail.created_at)}</dd>
             </div>
             <div>
               <dt>Finished</dt>
-              <dd>{formatTimestamp(run.finished_at)}</dd>
+              <dd>{formatTimestamp(runDetail.finished_at)}</dd>
             </div>
             <div>
               <dt>Run id</dt>
-              <dd>{run.id}</dd>
+              <dd>{runDetail.id}</dd>
             </div>
             <div>
               <dt>Test case snapshot</dt>
-              <dd>{run.input_snapshot.test_case_id}</dd>
+              <dd>{runDetail.input_snapshot.test_case_id}</dd>
             </div>
           </dl>
         </article>
@@ -246,30 +254,73 @@ export function RunDetail({ run }: RunDetailProps) {
           <dl className="run-detail-meta-grid">
             <div>
               <dt>Input tokens</dt>
-              <dd>{run.usage_input_tokens ?? "Unavailable"}</dd>
+              <dd>{runDetail.usage_input_tokens ?? "Unavailable"}</dd>
             </div>
             <div>
               <dt>Output tokens</dt>
-              <dd>{run.usage_output_tokens ?? "Unavailable"}</dd>
+              <dd>{runDetail.usage_output_tokens ?? "Unavailable"}</dd>
             </div>
             <div>
               <dt>Total tokens</dt>
-              <dd>{run.usage_total_tokens ?? "Unavailable"}</dd>
+              <dd>{runDetail.usage_total_tokens ?? "Unavailable"}</dd>
             </div>
             <div>
               <dt>Credential id</dt>
-              <dd>{run.credential_id ?? "Not stored"}</dd>
+              <dd>{runDetail.credential_id ?? "Not stored"}</dd>
             </div>
             <div>
               <dt>Started</dt>
-              <dd>{formatTimestamp(run.started_at)}</dd>
+              <dd>{formatTimestamp(runDetail.started_at)}</dd>
             </div>
             <div>
               <dt>Updated</dt>
-              <dd>{formatTimestamp(run.updated_at)}</dd>
+              <dd>{formatTimestamp(runDetail.updated_at)}</dd>
             </div>
           </dl>
         </article>
+      </section>
+
+      <section className="two-column-grid">
+        <article className="shell-panel runs-card">
+          <div className="settings-card-header">
+            <div>
+              <p className="section-kicker">Evaluation snapshot</p>
+              <h2>Manual judgment stored with this run.</h2>
+            </div>
+          </div>
+
+          <dl className="run-detail-meta-grid">
+            <div>
+              <dt>Overall score</dt>
+              <dd>{formatEvaluationScore(runDetail.evaluation)}</dd>
+            </div>
+            <div>
+              <dt>Signal</dt>
+              <dd>{formatEvaluationSignal(runDetail.evaluation)}</dd>
+            </div>
+            <div>
+              <dt>Dimensions</dt>
+              <dd>{formatDimensionScores(runDetail.evaluation)}</dd>
+            </div>
+            <div>
+              <dt>Notes</dt>
+              <dd>{formatEvaluationNotes(runDetail.evaluation)}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <RunEvaluationEditor
+          initialEvaluation={runDetail.evaluation}
+          onChange={(evaluation) => {
+            startTransition(() => {
+              setRunDetail((current) => ({
+                ...current,
+                evaluation,
+              }));
+            });
+          }}
+          runId={runDetail.id}
+        />
       </section>
 
       <section className="two-column-grid">
@@ -284,23 +335,21 @@ export function RunDetail({ run }: RunDetailProps) {
           <div className="run-detail-stack">
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">System prompt template</p>
-              <pre className="run-detail-block">
-                {formatPrompt(run.config_snapshot.system_prompt_template)}
-              </pre>
+              <pre className="run-detail-block">{formatPrompt(runDetail.config_snapshot.system_prompt_template)}</pre>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Rendered system prompt</p>
               <pre className="run-detail-block">
-                {formatPrompt(run.config_snapshot.rendered_system_prompt)}
+                {formatPrompt(runDetail.config_snapshot.rendered_system_prompt)}
               </pre>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">User prompt template</p>
-              <pre className="run-detail-block">{run.config_snapshot.user_prompt_template}</pre>
+              <pre className="run-detail-block">{runDetail.config_snapshot.user_prompt_template}</pre>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Rendered user prompt</p>
-              <pre className="run-detail-block">{run.config_snapshot.rendered_user_prompt}</pre>
+              <pre className="run-detail-block">{runDetail.config_snapshot.rendered_user_prompt}</pre>
             </div>
           </div>
         </article>
@@ -316,31 +365,31 @@ export function RunDetail({ run }: RunDetailProps) {
           <div className="run-detail-stack">
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Input text</p>
-              <pre className="run-detail-block">{run.input_snapshot.input_text}</pre>
+              <pre className="run-detail-block">{runDetail.input_snapshot.input_text}</pre>
             </div>
             <div className="run-detail-meta-grid">
               <div>
                 <dt>Expected output</dt>
-                <dd>{run.input_snapshot.expected_output_text ?? "Not provided"}</dd>
+                <dd>{runDetail.input_snapshot.expected_output_text ?? "Not provided"}</dd>
               </div>
               <div>
                 <dt>Input tags</dt>
-                <dd>{formatTags(run.input_snapshot.tags)}</dd>
+                <dd>{formatTags(runDetail.input_snapshot.tags)}</dd>
               </div>
               <div>
                 <dt>Notes</dt>
-                <dd>{run.input_snapshot.notes ?? "Not provided"}</dd>
+                <dd>{runDetail.input_snapshot.notes ?? "Not provided"}</dd>
               </div>
               <div>
                 <dt>Config tags</dt>
-                <dd>{formatTags(run.config_snapshot.tags)}</dd>
+                <dd>{formatTags(runDetail.config_snapshot.tags)}</dd>
               </div>
             </div>
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Context snapshot</p>
               <pre className="run-detail-block">
-                {run.context_snapshot
-                  ? `${run.context_snapshot.name ?? "Unnamed context"}\n\n${run.context_snapshot.content_text}`
+                {runDetail.context_snapshot
+                  ? `${runDetail.context_snapshot.name ?? "Unnamed context"}\n\n${runDetail.context_snapshot.content_text}`
                   : "No context snapshot was attached to this run."}
               </pre>
             </div>
@@ -357,19 +406,19 @@ export function RunDetail({ run }: RunDetailProps) {
         </div>
 
         <div className="run-detail-stack">
-          {run.output_text ? (
+          {runDetail.output_text ? (
             <div className="run-detail-block-shell">
               <p className="run-detail-block-label">Output text</p>
-              <pre className="run-detail-block">{run.output_text}</pre>
+              <pre className="run-detail-block">{runDetail.output_text}</pre>
             </div>
           ) : null}
 
           <div className="run-detail-block-shell">
             <p className="run-detail-block-label">Failure state</p>
             <pre
-              className={`run-detail-block${run.error_message ? " run-detail-block-error" : ""}`}
+              className={`run-detail-block${runDetail.error_message ? " run-detail-block-error" : ""}`}
             >
-              {run.error_message ?? "No failure was recorded for this run."}
+              {runDetail.error_message ?? "No failure was recorded for this run."}
             </pre>
           </div>
         </div>

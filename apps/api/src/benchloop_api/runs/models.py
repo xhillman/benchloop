@@ -2,7 +2,18 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, Index, Integer, JSON, String, Text, Uuid
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from benchloop_api.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -37,3 +48,27 @@ class Run(UserOwnedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     estimated_cost_usd: Mapped[float | None] = mapped_column(Float(), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RunEvaluation(UserOwnedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "run_evaluations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "run_id", name="uq_run_evaluations_user_id_run_id"),
+        Index("ix_run_evaluations_user_id_run_id", "user_id", "run_id"),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    overall_score: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+    dimension_scores: Mapped[dict[str, int]] = mapped_column(
+        "dimension_scores_json",
+        JSON(),
+        nullable=False,
+        default=dict,
+    )
+    thumbs_signal: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text(), nullable=True)

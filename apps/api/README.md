@@ -224,6 +224,15 @@ Implemented in `B028`:
 - `benchloop_api.execution.service:RunLaunchService.rerun_from_snapshot`
   - rebuilds the execution request from immutable snapshot JSON instead of re-reading mutable config or test case rows
 
+Implemented in `B030`:
+
+- `/api/v1/runs/{run_id}/evaluation`
+  - authenticated manual evaluation read, upsert, and delete endpoints scoped to the owning user's run only
+- `benchloop_api.runs.RunEvaluation`
+  - `run_evaluations` persistence for overall score, optional dimension scores, thumbs signal, and notes
+- `benchloop_api.runs.RunHistoryService`
+  - folds saved manual evaluation state into the run history and run detail read models so web and agent clients stay on one source of truth
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

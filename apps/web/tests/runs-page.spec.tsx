@@ -34,6 +34,7 @@ function buildRun(id: string, overrides: Partial<Record<string, unknown>> = {}) 
     tags: ["priority"],
     latency_ms: 240,
     estimated_cost_usd: 0.0014,
+    evaluation: null,
     created_at: "2025-01-10T15:00:00Z",
     started_at: "2025-01-10T15:00:00Z",
     finished_at: "2025-01-10T15:00:02Z",
@@ -44,9 +45,11 @@ function buildRun(id: string, overrides: Partial<Record<string, unknown>> = {}) 
 function buildBrowserClientMock() {
   return {
     runs: {
+      deleteEvaluation: vi.fn(),
       get: vi.fn(),
       list: vi.fn(),
       rerun: vi.fn(),
+      updateEvaluation: vi.fn(),
     },
   };
 }
@@ -103,6 +106,7 @@ function buildRunDetail(id: string, overrides: Partial<Record<string, unknown>> 
     usage_total_tokens: 56,
     latency_ms: 240,
     estimated_cost_usd: 0.0014,
+    evaluation: null,
     created_at: "2025-01-10T15:00:00Z",
     started_at: "2025-01-10T15:00:00Z",
     finished_at: "2025-01-10T15:00:02Z",
@@ -295,5 +299,76 @@ describe("run detail page", () => {
       "href",
       "/runs/run_2",
     );
+  });
+
+  it("saves a manual evaluation from run detail", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.runs.updateEvaluation.mockResolvedValue({
+      run_id: "run_1",
+      overall_score: 4,
+      dimension_scores: {
+        accuracy: 5,
+        clarity: 4,
+        completeness: 4,
+      },
+      thumbs_signal: "up",
+      notes: "Best balance of speed and clarity.",
+      created_at: "2025-01-11T15:00:00Z",
+      updated_at: "2025-01-11T15:01:00Z",
+    });
+    getApiClientMock.mockResolvedValue({
+      runs: {
+        get: vi.fn(async () => buildRunDetail("run_1")),
+      },
+    });
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        {await RunDetailPage({
+          params: Promise.resolve({
+            runId: "run_1",
+          }),
+        })}
+      </AppShellProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/overall score/i), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText(/thumbs signal/i), {
+      target: { value: "up" },
+    });
+    fireEvent.change(screen.getByLabelText(/accuracy score/i), {
+      target: { value: "5" },
+    });
+    fireEvent.change(screen.getByLabelText(/clarity score/i), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText(/completeness score/i), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText(/evaluation notes/i), {
+      target: { value: "Best balance of speed and clarity." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save evaluation/i }));
+
+    await waitFor(() => {
+      expect(browserClient.runs.updateEvaluation).toHaveBeenCalledWith("run_1", {
+        overall_score: 4,
+        dimension_scores: {
+          accuracy: 5,
+          clarity: 4,
+          completeness: 4,
+        },
+        thumbs_signal: "up",
+        notes: "Best balance of speed and clarity.",
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/saved manual evaluation\./i)).toBeInTheDocument();
+    });
+    expect(screen.getAllByText(/4\/5/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/best balance of speed and clarity\./i).length).toBeGreaterThan(1);
   });
 });

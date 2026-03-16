@@ -123,6 +123,17 @@ Implemented in `B029`:
 - Compare query strategy
   - the compare flow reuses the existing ownership-scoped run history and run detail client helpers instead of introducing a second compare-only API contract
 
+Implemented in `B030`:
+
+- Manual evaluation flows
+  - `components/runs/run-detail.tsx` now supports saving and clearing manual evaluations directly from run detail
+  - `components/experiments/experiment-compare-workspace.tsx` now supports saving manual evaluation without leaving the compare workflow
+- Evaluation-aware run surfaces
+  - `components/runs/runs-workspace.tsx` now displays saved score and signal data in the history list
+  - `components/runs/run-evaluation-editor.tsx` and `components/runs/run-evaluation-utils.ts` provide the shared evaluation editor and display formatting used across run detail and compare
+- Typed evaluation client contract
+  - `lib/api/client.ts` now exposes the run evaluation request and response types plus update and delete helpers shared by server and browser callers
+
 Local commands:
 
 - `make web-install`

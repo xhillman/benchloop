@@ -48,9 +48,11 @@ function buildBrowserClientMock() {
       update: vi.fn(),
     },
     runs: {
+      deleteEvaluation: vi.fn(),
       get: vi.fn(),
       list: vi.fn(),
       rerun: vi.fn(),
+      updateEvaluation: vi.fn(),
     },
   };
 }
@@ -72,6 +74,7 @@ function buildRun(id: string, overrides: Partial<Record<string, unknown>> = {}) 
     tags: ["refund"],
     latency_ms: 220,
     estimated_cost_usd: 0.0012,
+    evaluation: null,
     created_at: "2025-01-10T15:00:00Z",
     started_at: "2025-01-10T15:00:00Z",
     finished_at: "2025-01-10T15:00:02Z",
@@ -140,6 +143,7 @@ function buildRunDetail(id: string, overrides: Partial<Record<string, unknown>> 
     usage_total_tokens: 56,
     latency_ms: id === "run_2" ? 260 : 220,
     estimated_cost_usd: id === "run_2" ? 0.0015 : 0.0012,
+    evaluation: null,
     created_at: id === "run_2" ? "2025-01-11T16:00:00Z" : "2025-01-10T15:00:00Z",
     started_at: id === "run_2" ? "2025-01-11T16:00:00Z" : "2025-01-10T15:00:00Z",
     finished_at: id === "run_2" ? "2025-01-11T16:00:02Z" : "2025-01-10T15:00:02Z",
@@ -1186,5 +1190,118 @@ describe("experiment detail shell", () => {
       "href",
       "/runs/run_2",
     );
+  });
+
+  it("saves a manual evaluation from compare and updates the compare surfaces", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.runs.get
+      .mockResolvedValueOnce(buildRunDetail("run_2"))
+      .mockResolvedValueOnce(buildRunDetail("run_1"));
+    browserClient.runs.updateEvaluation.mockResolvedValue({
+      run_id: "run_2",
+      overall_score: 5,
+      dimension_scores: {
+        accuracy: 5,
+        clarity: 5,
+      },
+      thumbs_signal: "up",
+      notes: "Most trustworthy escalation wording.",
+      created_at: "2025-01-12T10:00:00Z",
+      updated_at: "2025-01-12T10:01:00Z",
+    });
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialConfigs={[]}
+          initialRuns={[
+            buildRun("run_2", {
+              config_name: "Escalation variant",
+              config_version_label: "v2",
+              latency_ms: 260,
+              estimated_cost_usd: 0.0015,
+              created_at: "2025-01-11T16:00:00Z",
+              started_at: "2025-01-11T16:00:00Z",
+              finished_at: "2025-01-11T16:00:02Z",
+            }),
+            buildRun("run_1"),
+          ]}
+          initialTestCases={[
+            {
+              id: "case_1",
+              experiment_id: "exp_1",
+              input_text: "Customer asks for a refund after duplicate billing.",
+              expected_output_text: "Acknowledge the issue and request account details.",
+              notes: "Baseline support case.",
+              tags: ["billing", "refund"],
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /compare/i }));
+    fireEvent.click(screen.getByLabelText(/select run escalation variant v2/i));
+    fireEvent.click(screen.getByLabelText(/select run refund baseline v1/i));
+    fireEvent.click(screen.getByRole("button", { name: /load compare view/i }));
+
+    await waitFor(() => {
+      expect(browserClient.runs.get).toHaveBeenCalledWith("run_2");
+      expect(browserClient.runs.get).toHaveBeenCalledWith("run_1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /open escalation variant detail/i })).toBeInTheDocument();
+    });
+
+    const runCard = screen
+      .getByRole("link", { name: /open escalation variant detail/i })
+      .closest("article");
+    expect(runCard).not.toBeNull();
+
+    fireEvent.change(within(runCard as HTMLElement).getByLabelText(/overall score/i), {
+      target: { value: "5" },
+    });
+    fireEvent.change(within(runCard as HTMLElement).getByLabelText(/thumbs signal/i), {
+      target: { value: "up" },
+    });
+    fireEvent.change(within(runCard as HTMLElement).getByLabelText(/accuracy score/i), {
+      target: { value: "5" },
+    });
+    fireEvent.change(within(runCard as HTMLElement).getByLabelText(/clarity score/i), {
+      target: { value: "5" },
+    });
+    fireEvent.change(within(runCard as HTMLElement).getByLabelText(/evaluation notes/i), {
+      target: { value: "Most trustworthy escalation wording." },
+    });
+    fireEvent.click(within(runCard as HTMLElement).getByRole("button", { name: /save evaluation/i }));
+
+    await waitFor(() => {
+      expect(browserClient.runs.updateEvaluation).toHaveBeenCalledWith("run_2", {
+        overall_score: 5,
+        dimension_scores: {
+          accuracy: 5,
+          clarity: 5,
+        },
+        thumbs_signal: "up",
+        notes: "Most trustworthy escalation wording.",
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText(/most trustworthy escalation wording\./i).length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByText(/5\/5/i).length).toBeGreaterThan(0);
   });
 });

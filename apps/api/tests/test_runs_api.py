@@ -24,7 +24,7 @@ from benchloop_api.execution.adapters import (
     SingleShotProviderRequest,
 )
 from benchloop_api.experiments.models import Experiment
-from benchloop_api.runs.models import Run
+from benchloop_api.runs.models import Run, RunEvaluation
 from benchloop_api.settings.encryption import EncryptionService
 from benchloop_api.settings.models import UserProviderCredential
 from benchloop_api.test_cases.models import TestCase as BenchloopTestCase
@@ -71,6 +71,7 @@ class RunHistoryRecords(TypedDict):
     refund_config: Config
     escalation_config: Config
     other_run: Run
+    refund_evaluation: RunEvaluation
     runs: list[Run]
 
 
@@ -532,6 +533,22 @@ def seed_run_history_records(session) -> RunHistoryRecords:
         finished_at=datetime(2025, 1, 13, 10, 0, 1, tzinfo=UTC),
     )
     session.add_all([run_one, run_two, run_three, other_run])
+    session.flush()
+    refund_evaluation = RunEvaluation(
+        user_id=owner.id,
+        run_id=run_one.id,
+        overall_score=4,
+        dimension_scores={
+            "accuracy": 5,
+            "clarity": 4,
+            "completeness": 4,
+        },
+        thumbs_signal="up",
+        notes="Best balance of speed and billing accuracy.",
+        created_at=datetime(2025, 1, 10, 15, 5, tzinfo=UTC),
+        updated_at=datetime(2025, 1, 10, 15, 5, tzinfo=UTC),
+    )
+    session.add(refund_evaluation)
     session.commit()
 
     return {
@@ -541,6 +558,7 @@ def seed_run_history_records(session) -> RunHistoryRecords:
         "refund_config": refund_config,
         "escalation_config": escalation_config,
         "other_run": other_run,
+        "refund_evaluation": refund_evaluation,
         "runs": [run_one, run_two, run_three],
     }
 
@@ -605,6 +623,32 @@ def test_rerun_endpoint_requires_authentication() -> None:
     app = create_app()
 
     response = request(app, "POST", "/api/v1/runs/11111111-1111-1111-1111-111111111111/rerun")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json() == {
+        "error": {
+            "code": "authentication_failed",
+            "message": "Authentication required.",
+            "details": None,
+        }
+    }
+
+
+def test_run_evaluation_endpoints_require_authentication() -> None:
+    app = create_app()
+
+    response = request(
+        app,
+        "PUT",
+        "/api/v1/runs/11111111-1111-1111-1111-111111111111/evaluation",
+        json_body={
+            "overall_score": 4,
+            "dimension_scores": {"accuracy": 5},
+            "thumbs_signal": "up",
+            "notes": "Best of the compared runs.",
+        },
+    )
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
@@ -797,8 +841,22 @@ def test_run_history_lists_only_owned_runs_with_experiment_context(
     ]
     assert payload[0]["status"] == "failed"
     assert payload[0]["config_name"] == "Sales follow-up"
+    assert payload[0]["evaluation"] is None
     assert payload[1]["test_case_input_preview"] == "Escalate the account lockout issue."
     assert payload[2]["provider"] == "openai"
+    assert payload[2]["evaluation"] == {
+        "run_id": str(records["runs"][0].id),
+        "overall_score": 4,
+        "dimension_scores": {
+            "accuracy": 5,
+            "clarity": 4,
+            "completeness": 4,
+        },
+        "thumbs_signal": "up",
+        "notes": "Best balance of speed and billing accuracy.",
+        "created_at": "2025-01-10T15:05:00Z",
+        "updated_at": "2025-01-10T15:05:00Z",
+    }
     assert all(run["experiment_name"] != "Other user's lab" for run in payload)
 
 
@@ -877,6 +935,7 @@ def test_run_detail_returns_owned_snapshot_and_execution_fields(
     assert payload["usage_total_tokens"] == 118
     assert payload["latency_ms"] == 120
     assert payload["estimated_cost_usd"] == 0.0008
+    assert payload["evaluation"] is None
 
 
 def test_run_detail_returns_failure_state_for_failed_runs(
@@ -903,6 +962,178 @@ def test_run_detail_returns_failure_state_for_failed_runs(
     assert payload["error_message"] == "Provider timed out."
     assert payload["usage_total_tokens"] is None
     assert payload["estimated_cost_usd"] is None
+    assert payload["evaluation"] is None
+
+
+def test_run_detail_returns_saved_manual_evaluation(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['runs'][0].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["evaluation"] == {
+        "run_id": str(records["runs"][0].id),
+        "overall_score": 4,
+        "dimension_scores": {
+            "accuracy": 5,
+            "clarity": 4,
+            "completeness": 4,
+        },
+        "thumbs_signal": "up",
+        "notes": "Best balance of speed and billing accuracy.",
+        "created_at": "2025-01-10T15:05:00Z",
+        "updated_at": "2025-01-10T15:05:00Z",
+    }
+
+
+def test_upsert_run_evaluation_persists_and_returns_owned_evaluation(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "PUT",
+        f"/api/v1/runs/{records['runs'][1].id}/evaluation",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "overall_score": 3,
+            "dimension_scores": {
+                "accuracy": 4,
+                "clarity": 3,
+            },
+            "thumbs_signal": "down",
+            "notes": "Accurate enough, but the escalation copy feels abrupt.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "run_id": str(records["runs"][1].id),
+        "overall_score": 3,
+        "dimension_scores": {
+            "accuracy": 4,
+            "clarity": 3,
+        },
+        "thumbs_signal": "down",
+        "notes": "Accurate enough, but the escalation copy feels abrupt.",
+        "created_at": response.json()["created_at"],
+        "updated_at": response.json()["updated_at"],
+    }
+
+    detail_response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['runs'][1].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert detail_response.status_code == 200
+    assert detail_response.json()["evaluation"]["overall_score"] == 3
+    assert detail_response.json()["evaluation"]["thumbs_signal"] == "down"
+    assert (
+        detail_response.json()["evaluation"]["notes"]
+        == "Accurate enough, but the escalation copy feels abrupt."
+    )
+
+    with app.state.session_factory() as session:
+        evaluations = session.scalars(select(RunEvaluation)).all()
+
+    assert len(evaluations) == 2
+    matching_evaluation = next(
+        evaluation for evaluation in evaluations if evaluation.run_id == records["runs"][1].id
+    )
+    assert matching_evaluation.user_id == records["owner"].id
+    assert matching_evaluation.dimension_scores == {
+        "accuracy": 4,
+        "clarity": 3,
+    }
+
+
+def test_delete_run_evaluation_removes_it_from_history_and_detail(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "DELETE",
+        f"/api/v1/runs/{records['runs'][0].id}/evaluation",
+        headers=auth_headers(rsa_private_key),
+    )
+
+    assert response.status_code == 204
+
+    detail_response = request(
+        app,
+        "GET",
+        f"/api/v1/runs/{records['runs'][0].id}",
+        headers=auth_headers(rsa_private_key),
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["evaluation"] is None
+
+    history_response = request(
+        app,
+        "GET",
+        "/api/v1/runs",
+        headers=auth_headers(rsa_private_key),
+    )
+    assert history_response.status_code == 200
+    history_payload = history_response.json()
+    matching_run = next(run for run in history_payload if run["id"] == str(records["runs"][0].id))
+    assert matching_run["evaluation"] is None
+
+
+def test_run_evaluation_routes_hide_runs_owned_by_other_users(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        records = seed_run_history_records(session)
+
+    response = request(
+        app,
+        "PUT",
+        f"/api/v1/runs/{records['other_run'].id}/evaluation",
+        headers=auth_headers(rsa_private_key),
+        json_body={
+            "overall_score": 2,
+            "dimension_scores": {"accuracy": 2},
+            "thumbs_signal": "down",
+            "notes": "Should remain hidden from this user.",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Run was not found.",
+            "details": None,
+        }
+    }
 
 
 def test_run_detail_hides_runs_owned_by_other_users(
