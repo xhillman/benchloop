@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from benchloop_api.configs.models import Config
 from benchloop_api.configs.repository import ConfigRepository
+from benchloop_api.context_bundles.repository import ContextBundleRepository
 from benchloop_api.experiments.repository import ExperimentRepository
 from benchloop_api.experiments.service import normalize_tags
 from benchloop_api.ownership.service import UserOwnedResourceNotFoundError
@@ -33,6 +34,7 @@ class ConfigService:
     def __init__(self, session: Session) -> None:
         self._session = session
         self._experiment_repository = ExperimentRepository(session)
+        self._context_bundle_repository = ContextBundleRepository(session)
         self._repository = ConfigRepository(session)
 
     def list(
@@ -70,6 +72,11 @@ class ConfigService:
         is_baseline: bool,
     ) -> Config:
         self._get_experiment_or_raise(user_id=user_id, experiment_id=experiment_id)
+        self._validate_context_bundle(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            context_bundle_id=context_bundle_id,
+        )
 
         config = self._repository.add(
             Config(
@@ -125,6 +132,11 @@ class ConfigService:
         is_baseline: bool,
     ) -> Config:
         self._get_experiment_or_raise(user_id=user_id, experiment_id=experiment_id)
+        self._validate_context_bundle(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            context_bundle_id=context_bundle_id,
+        )
         config = self._read_in_experiment(
             user_id=user_id,
             experiment_id=experiment_id,
@@ -309,3 +321,25 @@ class ConfigService:
             suffix += 1
 
         return f"{base_label}-{suffix}"
+
+    def _validate_context_bundle(
+        self,
+        *,
+        user_id: UUID,
+        experiment_id: UUID,
+        context_bundle_id: UUID | None,
+    ) -> None:
+        if context_bundle_id is None:
+            return
+
+        context_bundle = self._context_bundle_repository.get_owned_for_experiment(
+            user_id=user_id,
+            experiment_id=experiment_id,
+            context_bundle_id=context_bundle_id,
+        )
+        if context_bundle is None:
+            raise UserOwnedResourceNotFoundError(
+                resource_name="Context bundle",
+                resource_id=context_bundle_id,
+                user_id=user_id,
+            )

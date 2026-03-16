@@ -67,6 +67,16 @@ export type TestCaseResponse = {
   updated_at: string;
 };
 
+export type ContextBundleResponse = {
+  id: string;
+  experiment_id: string;
+  name: string;
+  content_text: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ConfigResponse = {
   id: string;
   experiment_id: string;
@@ -218,6 +228,14 @@ export type CreateTestCaseRequest = {
 };
 
 export type UpdateTestCaseRequest = CreateTestCaseRequest;
+
+export type CreateContextBundleRequest = {
+  name: string;
+  content_text: string;
+  notes: string | null;
+};
+
+export type UpdateContextBundleRequest = CreateContextBundleRequest;
 
 export type CreateConfigRequest = {
   name: string;
@@ -554,6 +572,11 @@ export function createApiClient({
           body: payload,
           method: "POST",
         }),
+      createContextBundle: (experimentId: string, payload: CreateContextBundleRequest) =>
+        request<ContextBundleResponse>(`/api/v1/experiments/${experimentId}/context-bundles`, {
+          body: payload,
+          method: "POST",
+        }),
       create: (payload: CreateExperimentRequest) =>
         request<ExperimentResponse>("/api/v1/experiments", {
           body: payload,
@@ -565,6 +588,10 @@ export function createApiClient({
         }),
       deleteConfig: (experimentId: string, configId: string) =>
         request<void>(`/api/v1/experiments/${experimentId}/configs/${configId}`, {
+          method: "DELETE",
+        }),
+      deleteContextBundle: (experimentId: string, contextBundleId: string) =>
+        request<void>(`/api/v1/experiments/${experimentId}/context-bundles/${contextBundleId}`, {
           method: "DELETE",
         }),
       deleteTestCase: (experimentId: string, testCaseId: string) =>
@@ -582,6 +609,8 @@ export function createApiClient({
         request<ExperimentResponse>(`/api/v1/experiments/${experimentId}`),
       listConfigs: (experimentId: string) =>
         request<ConfigResponse[]>(`/api/v1/experiments/${experimentId}/configs`),
+      listContextBundles: (experimentId: string) =>
+        request<ContextBundleResponse[]>(`/api/v1/experiments/${experimentId}/context-bundles`),
       listTestCases: (experimentId: string) =>
         request<TestCaseResponse[]>(`/api/v1/experiments/${experimentId}/test-cases`),
       list: (params?: ListExperimentsRequest) =>
@@ -603,6 +632,18 @@ export function createApiClient({
           body: payload,
           method: "PUT",
         }),
+      updateContextBundle: (
+        experimentId: string,
+        contextBundleId: string,
+        payload: UpdateContextBundleRequest,
+      ) =>
+        request<ContextBundleResponse>(
+          `/api/v1/experiments/${experimentId}/context-bundles/${contextBundleId}`,
+          {
+            body: payload,
+            method: "PUT",
+          },
+        ),
       updateTestCase: (
         experimentId: string,
         testCaseId: string,

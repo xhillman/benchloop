@@ -134,6 +134,16 @@ Implemented in `B030`:
 - Typed evaluation client contract
   - `lib/api/client.ts` now exposes the run evaluation request and response types plus update and delete helpers shared by server and browser callers
 
+Implemented in `B031`:
+
+- Experiment detail context workspace
+  - `app/(shell)/experiments/[experimentId]/page.tsx` now bootstraps experiment-owned context bundles alongside the parent experiment, test cases, configs, and run history
+  - `components/experiments/experiment-context-bundles-workspace.tsx` handles create, edit, and delete flows for reusable context text inside the detail route
+- Config attachment flow
+  - `components/experiments/experiment-configs-workspace.tsx` now lets the user attach a saved default context bundle to a config and shows the current bundle on each config card
+- Typed context bundle client contract
+  - `lib/api/client.ts` now exposes experiment-scoped context bundle CRUD helpers shared by server and browser callers
+
 Local commands:
 
 - `make web-install`

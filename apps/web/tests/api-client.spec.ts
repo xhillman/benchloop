@@ -934,6 +934,125 @@ describe("api client", () => {
     );
   });
 
+  it("routes context bundle CRUD through the shared client", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: "ctx_1",
+              experiment_id: "exp_1",
+              name: "Refund policy",
+              content_text: "Refunds clear within five business days.",
+              notes: "Billing reference.",
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "ctx_2",
+            experiment_id: "exp_1",
+            name: "Escalation policy",
+            content_text: "Escalations require manager approval.",
+            notes: null,
+            created_at: "2025-01-03T00:00:00Z",
+            updated_at: "2025-01-03T00:00:00Z",
+          }),
+          {
+            status: 201,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "ctx_2",
+            experiment_id: "exp_1",
+            name: "Escalation policy revised",
+            content_text: "Escalations require manager approval and a billing note.",
+            notes: "Updated reference.",
+            created_at: "2025-01-03T00:00:00Z",
+            updated_at: "2025-01-04T00:00:00Z",
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 204,
+        }),
+      );
+    const client = createApiClient({
+      fetch: fetchMock,
+      getToken: async () => "session_token",
+    });
+
+    const contextBundles = await client.experiments.listContextBundles("exp_1");
+    const createdContextBundle = await client.experiments.createContextBundle("exp_1", {
+      name: "Escalation policy",
+      content_text: "Escalations require manager approval.",
+      notes: null,
+    });
+    const updatedContextBundle = await client.experiments.updateContextBundle("exp_1", "ctx_2", {
+      name: "Escalation policy revised",
+      content_text: "Escalations require manager approval and a billing note.",
+      notes: "Updated reference.",
+    });
+    await client.experiments.deleteContextBundle("exp_1", "ctx_2");
+
+    expect(contextBundles).toHaveLength(1);
+    expect(createdContextBundle.id).toBe("ctx_2");
+    expect(updatedContextBundle.name).toBe("Escalation policy revised");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/v1/experiments/exp_1/context-bundles",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/v1/experiments/exp_1/context-bundles",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:8000/api/v1/experiments/exp_1/context-bundles/ctx_2",
+      expect.objectContaining({
+        method: "PUT",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:8000/api/v1/experiments/exp_1/context-bundles/ctx_2",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    );
+  });
+
   it("routes run launch requests through the shared client", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

@@ -8,13 +8,16 @@ import { useApiClient } from "@/lib/api/browser";
 import {
   ApiClientError,
   type ConfigResponse,
+  type ContextBundleResponse,
   type CreateConfigRequest,
   type UpdateConfigRequest,
 } from "@/lib/api/client";
 
 type ExperimentConfigsWorkspaceProps = {
+  configs: ConfigResponse[];
+  contextBundles?: ContextBundleResponse[];
   experimentId: string;
-  initialConfigs: ConfigResponse[];
+  onConfigsChange?: (configs: ConfigResponse[]) => void;
 };
 
 type FeedbackState =
@@ -112,19 +115,20 @@ function nextVersionLabel(configs: ConfigResponse[]) {
 }
 
 export function ExperimentConfigsWorkspace({
+  configs,
+  contextBundles = [],
   experimentId,
-  initialConfigs,
+  onConfigsChange,
 }: ExperimentConfigsWorkspaceProps) {
   const apiClient = useApiClient();
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
 
-  const [configs, setConfigs] = useState(() => sortConfigs(initialConfigs));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const [name, setName] = useState("");
-  const [versionLabel, setVersionLabel] = useState(nextVersionLabel(initialConfigs));
+  const [versionLabel, setVersionLabel] = useState(nextVersionLabel(configs));
   const [provider, setProvider] = useState(providerOptions[0]?.value ?? "openai");
   const [model, setModel] = useState("");
   const [workflowMode, setWorkflowMode] = useState(workflowOptions[0]?.value ?? "single_shot");
@@ -134,11 +138,13 @@ export function ExperimentConfigsWorkspace({
   const [maxOutputTokens, setMaxOutputTokens] = useState("512");
   const [topP, setTopP] = useState("");
   const [description, setDescription] = useState("");
+  const [contextBundleId, setContextBundleId] = useState("");
   const [tags, setTags] = useState("");
   const [isBaseline, setIsBaseline] = useState(false);
 
   const baselineCount = configs.filter((config) => config.is_baseline).length;
   const workflowCount = new Set(configs.map((config) => config.workflow_mode)).size;
+  const contextBundleNames = new Map(contextBundles.map((contextBundle) => [contextBundle.id, contextBundle.name]));
 
   async function runTask<T>({
     actionKey,
@@ -199,6 +205,7 @@ export function ExperimentConfigsWorkspace({
     setMaxOutputTokens("512");
     setTopP("");
     setDescription("");
+    setContextBundleId("");
     setTags("");
     setIsBaseline(false);
   }
@@ -216,7 +223,7 @@ export function ExperimentConfigsWorkspace({
       temperature: Number(temperature),
       max_output_tokens: Number(maxOutputTokens),
       top_p: parseOptionalNumber(topP),
-      context_bundle_id: null,
+      context_bundle_id: contextBundleId || null,
       tags: parseTags(tags),
       is_baseline: isBaseline,
     };
@@ -250,7 +257,7 @@ export function ExperimentConfigsWorkspace({
         work: () => apiClient.experiments.updateConfig(experimentId, editingId, payload),
         commit: (updatedConfig) => {
           const nextConfigs = mergeConfig(updatedConfig, configs);
-          setConfigs(nextConfigs);
+          onConfigsChange?.(nextConfigs);
           resetForm(nextConfigs);
         },
       });
@@ -265,7 +272,7 @@ export function ExperimentConfigsWorkspace({
       work: () => apiClient.experiments.createConfig(experimentId, payload),
       commit: (createdConfig) => {
         const nextConfigs = mergeConfig(createdConfig, configs);
-        setConfigs(nextConfigs);
+        onConfigsChange?.(nextConfigs);
         resetForm(nextConfigs);
       },
     });
@@ -284,6 +291,7 @@ export function ExperimentConfigsWorkspace({
     setMaxOutputTokens(String(config.max_output_tokens));
     setTopP(config.top_p === null ? "" : String(config.top_p));
     setDescription(config.description ?? "");
+    setContextBundleId(config.context_bundle_id ?? "");
     setTags(serializeTags(config.tags));
     setIsBaseline(config.is_baseline);
     setFeedback(null);
@@ -297,7 +305,7 @@ export function ExperimentConfigsWorkspace({
       work: () => apiClient.experiments.cloneConfig(experimentId, configId),
       commit: (clonedConfig) => {
         const nextConfigs = mergeConfig(clonedConfig, configs);
-        setConfigs(nextConfigs);
+        onConfigsChange?.(nextConfigs);
       },
     });
   }
@@ -310,7 +318,7 @@ export function ExperimentConfigsWorkspace({
       work: () => apiClient.experiments.markConfigBaseline(experimentId, configId),
       commit: (baselineConfig) => {
         const nextConfigs = mergeConfig(baselineConfig, configs);
-        setConfigs(nextConfigs);
+        onConfigsChange?.(nextConfigs);
         if (editingId === baselineConfig.id) {
           setIsBaseline(true);
         }
@@ -328,7 +336,7 @@ export function ExperimentConfigsWorkspace({
       },
       commit: () => {
         const nextConfigs = configs.filter((config) => config.id !== configId);
-        setConfigs(nextConfigs);
+        onConfigsChange?.(sortConfigs(nextConfigs));
         if (editingId === configId) {
           resetForm(nextConfigs);
         }
@@ -431,6 +439,22 @@ export function ExperimentConfigsWorkspace({
                 </label>
 
                 <label className="settings-field">
+                  <span>Default context bundle</span>
+                  <select
+                    name="context_bundle_id"
+                    onChange={(event) => setContextBundleId(event.target.value)}
+                    value={contextBundleId}
+                  >
+                    <option value="">No default bundle</option>
+                    {contextBundles.map((contextBundle) => (
+                      <option key={contextBundle.id} value={contextBundle.id}>
+                        {contextBundle.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="settings-field">
                   <span>Temperature</span>
                   <input
                     max="2"
@@ -491,7 +515,8 @@ export function ExperimentConfigsWorkspace({
                   value={userPromptTemplate}
                 />
                 <small className="run-helper-copy">
-                  Use `{"{{input}}"}` for the saved test case input in single-shot runs.
+                  Use `{"{{input}}"}` for the saved test case input. Prompt-plus-context runs can also reference
+                  `{"{{context}}"}` when a bundle is attached.
                 </small>
               </label>
 
@@ -577,6 +602,14 @@ export function ExperimentConfigsWorkspace({
                     <div>
                       <dt>Prompt preview</dt>
                       <dd>{buildPromptPreview(config.user_prompt_template)}</dd>
+                    </div>
+                    <div>
+                      <dt>Context bundle</dt>
+                      <dd>
+                        {config.context_bundle_id
+                          ? (contextBundleNames.get(config.context_bundle_id) ?? "Bundle not found.")
+                          : "No default bundle."}
+                      </dd>
                     </div>
                     <div>
                       <dt>Generation params</dt>

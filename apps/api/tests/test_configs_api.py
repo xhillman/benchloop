@@ -13,6 +13,7 @@ from sqlalchemy import select
 from benchloop_api.app import create_app
 from benchloop_api.auth.service import ClerkJwtVerifier
 from benchloop_api.configs.models import Config as BenchloopConfig
+from benchloop_api.context_bundles.models import ContextBundle
 from benchloop_api.db.base import Base
 from benchloop_api.experiments.models import Experiment
 from benchloop_api.users.models import User
@@ -457,6 +458,126 @@ def test_config_routes_enforce_experiment_and_user_scope(
         "error": {
             "code": "not_found",
             "message": "Config was not found.",
+            "details": None,
+        }
+    }
+
+
+def test_config_routes_validate_attached_context_bundle_scope(
+    rsa_private_key,
+    sqlite_database_url,
+) -> None:
+    app = build_test_app(rsa_private_key, sqlite_database_url)
+
+    with app.state.session_factory() as session:
+        owner = User(clerk_user_id="user_123")
+        other_user = User(clerk_user_id="user_456")
+        session.add_all([owner, other_user])
+        session.flush()
+
+        owner_experiment = Experiment(
+            id=UUID("f97bd4a8-3fc5-46f6-809f-b798e18a0f84"),
+            user_id=owner.id,
+            name="Owner experiment",
+            description="Owner experiment",
+            tags=["owner"],
+        )
+        second_owner_experiment = Experiment(
+            id=UUID("2a4404b6-bdc0-41ea-886a-35cb13d0c44f"),
+            user_id=owner.id,
+            name="Second owner experiment",
+            description="Second owner experiment",
+            tags=["owner"],
+        )
+        other_experiment = Experiment(
+            id=UUID("8f19d6e2-8d88-4ed8-94d1-2149503f4b1e"),
+            user_id=other_user.id,
+            name="Other experiment",
+            description="Other experiment",
+            tags=["other"],
+        )
+        session.add_all([owner_experiment, second_owner_experiment, other_experiment])
+        session.flush()
+
+        second_experiment_bundle = ContextBundle(
+            id=UUID("0d60b73c-4ca5-4cc5-b58d-65069b7f12f7"),
+            user_id=owner.id,
+            experiment_id=second_owner_experiment.id,
+            name="Second lane policy",
+            content_text="Context from another owner experiment.",
+            notes=None,
+        )
+        other_user_bundle = ContextBundle(
+            id=UUID("ff73f520-4ab3-430a-84c0-cc5b5459b7cf"),
+            user_id=other_user.id,
+            experiment_id=other_experiment.id,
+            name="Other user policy",
+            content_text="Context from another user.",
+            notes=None,
+        )
+        session.add_all([second_experiment_bundle, other_user_bundle])
+        session.commit()
+
+    wrong_experiment_bundle_response = request(
+        app,
+        "POST",
+        "/api/v1/experiments/f97bd4a8-3fc5-46f6-809f-b798e18a0f84/configs",
+        headers=auth_headers(rsa_private_key, subject="user_123"),
+        json_body={
+            "name": "Owner config",
+            "version_label": "v1",
+            "description": "Owner config",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "workflow_mode": "prompt_plus_context",
+            "system_prompt": "Use the supplied context.",
+            "user_prompt_template": "Answer {{ input_text }} with {{ context }}",
+            "temperature": 0.2,
+            "max_output_tokens": 300,
+            "top_p": 0.9,
+            "context_bundle_id": "0d60b73c-4ca5-4cc5-b58d-65069b7f12f7",
+            "tags": ["owner"],
+            "is_baseline": False,
+        },
+    )
+
+    assert wrong_experiment_bundle_response.status_code == 404
+    assert wrong_experiment_bundle_response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Context bundle was not found.",
+            "details": None,
+        }
+    }
+
+    cross_user_bundle_response = request(
+        app,
+        "POST",
+        "/api/v1/experiments/f97bd4a8-3fc5-46f6-809f-b798e18a0f84/configs",
+        headers=auth_headers(rsa_private_key, subject="user_123"),
+        json_body={
+            "name": "Owner config",
+            "version_label": "v1",
+            "description": "Owner config",
+            "provider": "openai",
+            "model": "gpt-4.1-mini",
+            "workflow_mode": "prompt_plus_context",
+            "system_prompt": "Use the supplied context.",
+            "user_prompt_template": "Answer {{ input_text }} with {{ context }}",
+            "temperature": 0.2,
+            "max_output_tokens": 300,
+            "top_p": 0.9,
+            "context_bundle_id": "ff73f520-4ab3-430a-84c0-cc5b5459b7cf",
+            "tags": ["owner"],
+            "is_baseline": False,
+        },
+    )
+
+    assert cross_user_bundle_response.status_code == 404
+    assert cross_user_bundle_response.json() == {
+        "error": {
+            "code": "not_found",
+            "message": "Context bundle was not found.",
             "details": None,
         }
     }

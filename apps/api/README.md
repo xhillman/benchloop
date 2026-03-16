@@ -233,6 +233,20 @@ Implemented in `B030`:
 - `benchloop_api.runs.RunHistoryService`
   - folds saved manual evaluation state into the run history and run detail read models so web and agent clients stay on one source of truth
 
+Implemented in `B031`:
+
+- `benchloop_api.context_bundles`
+  - user-owned `context_bundles` model plus repository and service for experiment-scoped list, create, update, read, and delete flows
+  - deleting a bundle clears attached config defaults before the bundle row is removed so later config edits do not keep dead references
+- `/api/v1/experiments/{experiment_id}/context-bundles`
+  - authenticated list and create endpoints for reusable experiment-owned context text
+- `/api/v1/experiments/{experiment_id}/context-bundles/{context_bundle_id}`
+  - authenticated update and delete endpoints scoped to the owning user and experiment only
+- `benchloop_api.configs`
+  - config create and update flows now validate attached `context_bundle_id` values against the same owned experiment before saving
+- `apps/api/alembic/versions/0009_add_context_bundles_table.py`
+  - migration that creates `context_bundles` and adds the config-level foreign key for default bundle attachment
+
 Ownership conventions:
 
 - user-owned SQLAlchemy models should compose `UserOwnedMixin`

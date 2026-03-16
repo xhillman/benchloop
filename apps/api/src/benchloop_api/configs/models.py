@@ -30,7 +30,12 @@ class Config(UserOwnedMixin, UUIDPrimaryKeyMixin, TimestampMixin, Base):
     temperature: Mapped[float] = mapped_column(Float(), nullable=False)
     max_output_tokens: Mapped[int] = mapped_column(Integer(), nullable=False)
     top_p: Mapped[float | None] = mapped_column(Float(), nullable=True)
-    context_bundle_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    context_bundle_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("context_bundles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     tags: Mapped[list[str]] = mapped_column(
         JSON(),
         nullable=False,

@@ -29,6 +29,7 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert "test_cases" in inspector.get_table_names()
         assert "runs" in inspector.get_table_names()
         assert "run_evaluations" in inspector.get_table_names()
+        assert "context_bundles" in inspector.get_table_names()
 
         user_settings_columns = {
             column["name"]: column for column in inspector.get_columns("user_settings")
@@ -165,5 +166,23 @@ def test_alembic_head_creates_settings_and_experiments_tables(tmp_path) -> None:
         assert evaluation_columns["user_id"]["nullable"] is False
         assert evaluation_columns["run_id"]["nullable"] is False
         assert evaluation_columns["dimension_scores_json"]["nullable"] is False
+
+        context_bundle_columns = {
+            column["name"]: column for column in inspector.get_columns("context_bundles")
+        }
+        assert {
+            "id",
+            "user_id",
+            "experiment_id",
+            "name",
+            "content_text",
+            "notes",
+            "created_at",
+            "updated_at",
+        } <= set(context_bundle_columns)
+        assert context_bundle_columns["user_id"]["nullable"] is False
+        assert context_bundle_columns["experiment_id"]["nullable"] is False
+        assert context_bundle_columns["name"]["nullable"] is False
+        assert context_bundle_columns["content_text"]["nullable"] is False
     finally:
         engine.dispose()

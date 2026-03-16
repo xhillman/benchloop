@@ -32,18 +32,22 @@ function buildBrowserClientMock() {
       launchBatchRuns: vi.fn(),
       launchRun: vi.fn(),
       createConfig: vi.fn(),
+      createContextBundle: vi.fn(),
       create: vi.fn(),
       createTestCase: vi.fn(),
       deleteConfig: vi.fn(),
+      deleteContextBundle: vi.fn(),
       delete: vi.fn(),
       deleteTestCase: vi.fn(),
       duplicateTestCase: vi.fn(),
       get: vi.fn(),
       listConfigs: vi.fn(),
+      listContextBundles: vi.fn(),
       list: vi.fn(),
       listTestCases: vi.fn(),
       markConfigBaseline: vi.fn(),
       updateConfig: vi.fn(),
+      updateContextBundle: vi.fn(),
       updateTestCase: vi.fn(),
       update: vi.fn(),
     },
@@ -325,6 +329,17 @@ describe("experiments page", () => {
             context_bundle_id: null,
             tags: ["cheap", "fast"],
             is_baseline: true,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          },
+        ]),
+        listContextBundles: vi.fn(async () => [
+          {
+            id: "ctx_1",
+            experiment_id: "exp_1",
+            name: "Refund policy",
+            content_text: "Refunds clear within five business days.",
+            notes: "Billing reference.",
             created_at: "2025-01-01T00:00:00Z",
             updated_at: "2025-01-02T00:00:00Z",
           },
@@ -861,6 +876,219 @@ describe("experiment detail shell", () => {
 
     await waitFor(() => {
       expect(browserClient.experiments.deleteConfig).toHaveBeenCalledWith("exp_1", "cfg_2");
+    });
+  });
+
+  it("creates, edits, and deletes context bundles from the detail tab", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.createContextBundle.mockResolvedValue({
+      id: "ctx_1",
+      experiment_id: "exp_1",
+      name: "Refund policy",
+      content_text: "Refunds clear within five business days.",
+      notes: "Billing reference.",
+      created_at: "2025-01-03T00:00:00Z",
+      updated_at: "2025-01-03T00:00:00Z",
+    });
+    browserClient.experiments.updateContextBundle.mockResolvedValue({
+      id: "ctx_1",
+      experiment_id: "exp_1",
+      name: "Refund policy revised",
+      content_text: "Refunds clear within three business days.",
+      notes: "Updated after finance review.",
+      created_at: "2025-01-03T00:00:00Z",
+      updated_at: "2025-01-04T00:00:00Z",
+    });
+    browserClient.experiments.deleteContextBundle.mockResolvedValue(undefined);
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialRuns={[]}
+          initialTestCases={[]}
+          initialConfigs={[]}
+          initialContextBundles={[]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /^context$/i }));
+
+    fireEvent.change(screen.getByLabelText(/^name$/i), {
+      target: { value: "Refund policy" },
+    });
+    fireEvent.change(screen.getByLabelText(/context content/i), {
+      target: { value: "Refunds clear within five business days." },
+    });
+    fireEvent.change(screen.getByLabelText(/^notes$/i), {
+      target: { value: "Billing reference." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create context bundle/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.createContextBundle).toHaveBeenCalledWith("exp_1", {
+        name: "Refund policy",
+        content_text: "Refunds clear within five business days.",
+        notes: "Billing reference.",
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Refund policy")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /edit context bundle/i }));
+    fireEvent.change(screen.getByLabelText(/^name$/i), {
+      target: { value: "Refund policy revised" },
+    });
+    fireEvent.change(screen.getByLabelText(/context content/i), {
+      target: { value: "Refunds clear within three business days." },
+    });
+    fireEvent.change(screen.getByLabelText(/^notes$/i), {
+      target: { value: "Updated after finance review." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save context bundle/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.updateContextBundle).toHaveBeenCalledWith("exp_1", "ctx_1", {
+        name: "Refund policy revised",
+        content_text: "Refunds clear within three business days.",
+        notes: "Updated after finance review.",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /delete context bundle/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.deleteContextBundle).toHaveBeenCalledWith("exp_1", "ctx_1");
+    });
+  });
+
+  it("attaches a saved context bundle when creating a config", async () => {
+    const browserClient = buildBrowserClientMock();
+    browserClient.experiments.createConfig.mockResolvedValue({
+      id: "cfg_2",
+      experiment_id: "exp_1",
+      name: "Context answer",
+      version_label: "v2",
+      description: "Adds policy context before replying.",
+      provider: "anthropic",
+      model: "claude-3-5-sonnet",
+      workflow_mode: "prompt_plus_context",
+      system_prompt: "Use the supplied policy.",
+      user_prompt_template: "Answer with context: {{ input_text }} / {{ context }}",
+      temperature: 0.4,
+      max_output_tokens: 600,
+      top_p: null,
+      context_bundle_id: "ctx_1",
+      tags: ["context", "thorough"],
+      is_baseline: false,
+      created_at: "2025-01-05T00:00:00Z",
+      updated_at: "2025-01-05T00:00:00Z",
+    });
+    useApiClientMock.mockReturnValue(browserClient);
+
+    render(
+      <AppShellProvider>
+        <ExperimentDetailShell
+          initialExperiment={{
+            id: "exp_1",
+            name: "Support triage",
+            description: "Compare prompt variants for support tickets.",
+            tags: ["support", "triage"],
+            is_archived: false,
+            created_at: "2025-01-01T00:00:00Z",
+            updated_at: "2025-01-02T00:00:00Z",
+          }}
+          initialRuns={[]}
+          initialTestCases={[]}
+          initialConfigs={[]}
+          initialContextBundles={[
+            {
+              id: "ctx_1",
+              experiment_id: "exp_1",
+              name: "Refund policy",
+              content_text: "Refunds clear within five business days.",
+              notes: "Billing reference.",
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-02T00:00:00Z",
+            },
+          ]}
+        />
+      </AppShellProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /configs/i }));
+
+    fireEvent.change(screen.getByLabelText(/^name$/i), {
+      target: { value: "Context answer" },
+    });
+    fireEvent.change(screen.getByLabelText(/version label/i), {
+      target: { value: "v2" },
+    });
+    fireEvent.change(screen.getByLabelText(/provider/i), {
+      target: { value: "anthropic" },
+    });
+    fireEvent.change(screen.getByLabelText(/model/i), {
+      target: { value: "claude-3-5-sonnet" },
+    });
+    fireEvent.change(screen.getByLabelText(/workflow mode/i), {
+      target: { value: "prompt_plus_context" },
+    });
+    fireEvent.change(screen.getByLabelText(/default context bundle/i), {
+      target: { value: "ctx_1" },
+    });
+    fireEvent.change(screen.getByLabelText(/system prompt/i), {
+      target: { value: "Use the supplied policy." },
+    });
+    fireEvent.change(screen.getByLabelText(/user prompt template/i), {
+      target: { value: "Answer with context: {{ input_text }} / {{ context }}" },
+    });
+    fireEvent.change(screen.getByLabelText(/temperature/i), {
+      target: { value: "0.4" },
+    });
+    fireEvent.change(screen.getByLabelText(/max output tokens/i), {
+      target: { value: "600" },
+    });
+    fireEvent.change(screen.getByLabelText(/description/i), {
+      target: { value: "Adds policy context before replying." },
+    });
+    fireEvent.change(screen.getByLabelText(/config tags/i), {
+      target: { value: "context, thorough" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create config/i }));
+
+    await waitFor(() => {
+      expect(browserClient.experiments.createConfig).toHaveBeenCalledWith("exp_1", {
+        name: "Context answer",
+        version_label: "v2",
+        description: "Adds policy context before replying.",
+        provider: "anthropic",
+        model: "claude-3-5-sonnet",
+        workflow_mode: "prompt_plus_context",
+        system_prompt: "Use the supplied policy.",
+        user_prompt_template: "Answer with context: {{ input_text }} / {{ context }}",
+        temperature: 0.4,
+        max_output_tokens: 600,
+        top_p: null,
+        context_bundle_id: "ctx_1",
+        tags: ["context", "thorough"],
+        is_baseline: false,
+      });
+    });
+    await waitFor(() => {
+      const createdConfigCard = screen.getByText("Context answer").closest("article");
+      expect(createdConfigCard).not.toBeNull();
+      expect(within(createdConfigCard!).getByText("Refund policy")).toBeInTheDocument();
     });
   });
 

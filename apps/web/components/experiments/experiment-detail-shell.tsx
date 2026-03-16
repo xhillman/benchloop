@@ -5,6 +5,7 @@ import { startTransition, useState, type FormEvent } from "react";
 
 import { ExperimentCompareWorkspace } from "@/components/experiments/experiment-compare-workspace";
 import { ExperimentConfigsWorkspace } from "@/components/experiments/experiment-configs-workspace";
+import { ExperimentContextBundlesWorkspace } from "@/components/experiments/experiment-context-bundles-workspace";
 import { ExperimentRunsWorkspace } from "@/components/experiments/experiment-runs-workspace";
 import { ExperimentTestCasesWorkspace } from "@/components/experiments/experiment-test-cases-workspace";
 import { useAppShellState } from "@/components/providers/app-shell-provider";
@@ -12,6 +13,7 @@ import { useApiClient } from "@/lib/api/browser";
 import {
   ApiClientError,
   type ConfigResponse,
+  type ContextBundleResponse,
   type ExperimentResponse,
   type RunHistoryResponse,
   type TestCaseResponse,
@@ -20,12 +22,13 @@ import {
 
 type ExperimentDetailShellProps = {
   initialConfigs: ConfigResponse[];
+  initialContextBundles?: ContextBundleResponse[];
   initialExperiment: ExperimentResponse;
   initialRuns: RunHistoryResponse[];
   initialTestCases: TestCaseResponse[];
 };
 
-type DetailTab = "compare" | "configs" | "overview" | "runs" | "test-cases";
+type DetailTab = "compare" | "configs" | "context-bundles" | "overview" | "runs" | "test-cases";
 
 type FeedbackState =
   | {
@@ -63,12 +66,14 @@ const tabs: { value: DetailTab; label: string }[] = [
   { value: "overview", label: "Overview" },
   { value: "test-cases", label: "Test cases" },
   { value: "configs", label: "Configs" },
+  { value: "context-bundles", label: "Context" },
   { value: "runs", label: "Runs" },
   { value: "compare", label: "Compare" },
 ];
 
 export function ExperimentDetailShell({
   initialConfigs,
+  initialContextBundles = [],
   initialExperiment,
   initialRuns,
   initialTestCases,
@@ -78,6 +83,8 @@ export function ExperimentDetailShell({
   const { clearGlobalError, setGlobalError, startLoading, stopLoading } = useAppShellState();
 
   const [experiment, setExperiment] = useState(initialExperiment);
+  const [configs, setConfigs] = useState(initialConfigs);
+  const [contextBundles, setContextBundles] = useState(initialContextBundles);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -295,11 +302,31 @@ export function ExperimentDetailShell({
             initialTestCases={initialTestCases}
           />
         ) : activeTab === "configs" ? (
-          <ExperimentConfigsWorkspace experimentId={experiment.id} initialConfigs={initialConfigs} />
+          <ExperimentConfigsWorkspace
+            configs={configs}
+            contextBundles={contextBundles}
+            experimentId={experiment.id}
+            onConfigsChange={setConfigs}
+          />
+        ) : activeTab === "context-bundles" ? (
+          <ExperimentContextBundlesWorkspace
+            contextBundles={contextBundles}
+            experimentId={experiment.id}
+            onContextBundleDeleted={(deletedContextBundleId) => {
+              setConfigs((currentConfigs) =>
+                currentConfigs.map((config) =>
+                  config.context_bundle_id === deletedContextBundleId
+                    ? { ...config, context_bundle_id: null }
+                    : config,
+                ),
+              );
+            }}
+            onContextBundlesChange={setContextBundles}
+          />
         ) : activeTab === "runs" ? (
           <ExperimentRunsWorkspace
             experimentId={experiment.id}
-            initialConfigs={initialConfigs}
+            initialConfigs={configs}
             initialTestCases={initialTestCases}
           />
         ) : activeTab === "compare" ? (

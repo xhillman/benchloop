@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/states/error-state";
 import {
   ApiClientError,
   type ConfigResponse,
+  type ContextBundleResponse,
   type ExperimentResponse,
   type RunHistoryResponse,
   type TestCaseResponse,
@@ -21,16 +22,18 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
   const { experimentId } = await params;
   let bootstrapError: string | null = null;
   let configs: ConfigResponse[] = [];
+  let contextBundles: ContextBundleResponse[] = [];
   let experiment: ExperimentResponse | null = null;
   let runs: RunHistoryResponse[] = [];
   let testCases: TestCaseResponse[] = [];
 
   try {
     const apiClient = await getApiClient();
-    [experiment, testCases, configs, runs] = await Promise.all([
+    [experiment, testCases, configs, contextBundles, runs] = await Promise.all([
       apiClient.experiments.get(experimentId),
       apiClient.experiments.listTestCases(experimentId),
       apiClient.experiments.listConfigs(experimentId),
+      apiClient.experiments.listContextBundles(experimentId),
       apiClient.runs.list({ experimentIds: [experimentId] }),
     ]);
   } catch (error) {
@@ -68,6 +71,7 @@ export default async function ExperimentDetailPage({ params }: ExperimentDetailP
       ) : (
         <ExperimentDetailShell
           initialConfigs={configs}
+          initialContextBundles={contextBundles}
           initialExperiment={experiment}
           initialRuns={runs}
           initialTestCases={testCases}
